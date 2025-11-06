@@ -1,7 +1,7 @@
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 
 export const getServers = async () => {
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -16,7 +16,7 @@ export const getServers = async () => {
     .eq("user_id", user.id)
 
   if (memberError) {
-    console.error("Error fetching server memberships:", memberError)
+    console.error("[v0] Error fetching server memberships:", memberError)
     return []
   }
 
@@ -33,7 +33,7 @@ export const getServers = async () => {
         `)
       .in("id", serverIds)
     if (error) {
-      console.error("Error fetching servers:", error)
+      console.error("[v0] Error fetching servers:", error)
       return []
     }
     return data || []
