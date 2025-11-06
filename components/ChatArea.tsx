@@ -55,8 +55,6 @@ type ChatAreaProps = {
   channelId: number | null
   channelName: string | null
   serverId: number
-  channelType?: "text" | "voice"
-  onLeaveVoice?: () => void
 }
 
 // Add a type for user roles
@@ -115,13 +113,7 @@ const isNearBottom = (container: HTMLDivElement) => {
   return container.scrollHeight - container.scrollTop - container.clientHeight < threshold
 }
 
-export default function ChatArea({
-  channelId,
-  channelName,
-  serverId,
-  channelType = "text",
-  onLeaveVoice,
-}: ChatAreaProps) {
+export default function ChatArea({ channelId, channelName, serverId }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [isMessagesLoading, setIsMessagesLoading] = useState(true)

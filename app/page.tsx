@@ -5,7 +5,6 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import ServerList from "@/components/ServerList"
 import ChannelList from "@/components/ChannelList"
 import ChatArea from "@/components/ChatArea"
-import VoiceArea from "@/components/VoiceArea"
 import InviteModal from "@/components/InviteModal"
 import CreateOrJoinServer from "@/components/CreateOrJoinServer"
 import CougeLogin from "./login/page"
@@ -26,7 +25,7 @@ type Server = {
   name: string
   owner_id: string
   avatar_url: string | null
-  channels?: { id: number; name: string; channel_type?: string }[]
+  channels?: { id: number; name: string }[]
 }
 
 export default function Home() {
@@ -36,7 +35,6 @@ export default function Home() {
   const [selectedServer, setSelectedServer] = useState<number | null>(0)
   const [selectedChannel, setSelectedChannel] = useState<number | null>(null)
   const [selectedChannelName, setSelectedChannelName] = useState<string | null>(null)
-  const [selectedChannelType, setSelectedChannelType] = useState<"text" | "voice">("text")
   const [isCreateOrJoinServerOpen, setIsCreateOrJoinServerOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -76,7 +74,7 @@ export default function Home() {
             banner_url,
             description,
             is_private,
-            channels (id, name, channel_type)
+            channels (id, name)
           `)
           .in("id", serverIds)
         if (error) {
@@ -207,18 +205,15 @@ export default function Home() {
     if (serverId === 0) {
       setSelectedChannel(null)
       setSelectedChannelName(null)
-      setSelectedChannelType("text")
     } else {
       // Only try to select a channel when clicking on an actual server
       const firstChannel = servers.find((s) => s.id === serverId)?.channels?.[0]
       if (firstChannel) {
         setSelectedChannel(firstChannel.id)
         setSelectedChannelName(firstChannel.name)
-        setSelectedChannelType((firstChannel.channel_type as "text" | "voice") || "text")
       } else {
         setSelectedChannel(null)
         setSelectedChannelName(null)
-        setSelectedChannelType("text")
       }
     }
 
@@ -269,16 +264,10 @@ export default function Home() {
     setSelectedChannelName(null)
   }
 
-  const handleSelectChannel = (
-    channelId: number | null,
-    channelName: string | null,
-    serverId: number,
-    channelType: "text" | "voice" = "text",
-  ) => {
+  const handleSelectChannel = (channelId: number | null, channelName: string | null, serverId: number) => {
     setSelectedChannel(channelId)
     setSelectedChannelName(channelName)
     setSelectedServer(serverId)
-    setSelectedChannelType(channelType)
 
     if (isMobileDevice) {
       setMobileView("chat")
@@ -293,14 +282,6 @@ export default function Home() {
 
   const handleOpenSettings = () => {
     setIsSettingsOpen(true)
-  }
-
-  const handleLeaveVoice = () => {
-    // Return to text mode or channel selection
-    setSelectedChannelType("text")
-    // Optionally clear the channel selection
-    // setSelectedChannel(null)
-    // setSelectedChannelName(null)
   }
 
   if (isLoading) {
@@ -355,8 +336,6 @@ export default function Home() {
               channelName={selectedChannelName}
               serverId={selectedServer}
               onBack={handleBackToChannels}
-              channelType={selectedChannelType}
-              onLeaveVoice={handleLeaveVoice}
             />
           </div>
         )}
@@ -421,27 +400,8 @@ export default function Home() {
             selectedChannelId={selectedChannel}
             onLeaveServer={handleLeaveServer}
           />
-
-          {/* Render different components based on channel type */}
-          {selectedChannelType === "voice" ? (
-            <VoiceArea
-              channelId={selectedChannel!}
-              channelName={channelName}
-              serverId={selectedServer || 0}
-              onLeave={handleLeaveVoice}
-            />
-          ) : (
-            <ChatArea
-              channelId={selectedChannel}
-              channelName={channelName}
-              serverId={selectedServer || 0}
-              channelType={selectedChannelType}
-              onLeaveVoice={handleLeaveVoice}
-            />
-          )}
-
-          {/* Only show members list for text channels */}
-          {selectedChannelType === "text" && <ServerMembersList serverId={selectedServer} />}
+          <ChatArea channelId={selectedChannel} channelName={channelName} serverId={selectedServer || 0} />
+          <ServerMembersList serverId={selectedServer} />
         </>
       )}
 

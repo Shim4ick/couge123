@@ -2,35 +2,43 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Hash, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Hash, Volume2, LogOut, ChevronDown, ChevronRight } from "lucide-react"
+import SimpleLoadingSpinner from "@/components/SimpleLoadingSpinner"
+import Image from "next/image"
 
 type Channel = {
   id: number
   name: string
-  channel_type: "text" | "voice"
-  category_id?: number
+  server_id: number
+  category_id: number | null
+  position: number
 }
 
 type Category = {
   id: number
   name: string
+  server_id: number
   position: number
-  channels: Channel[]
 }
 
+type Server = {
+  id: number
+  name: string
+  is_verified?: boolean
+  avatar_url?: string | null
+  banner_url?: string | null
+}
+
+// Add the onLeaveServer prop to the component props
 type MobileChannelListProps = {
-  serverId: number | null
-  onSelectChannel: (
-    channelId: number | null,
-    channelName: string | null,
-    serverId: number,
-    channelType?: "text" | "voice",
-  ) => void
+  serverId: number
+  onSelectChannel: (channelId: number | null, channelName: string | null, serverId: number) => void
   selectedChannelId: number | null
   onLeaveServer?: (serverId: number) => void
 }
 
+// Update the function parameters
 export default function MobileChannelList({
   serverId,
   onSelectChannel,
@@ -39,216 +47,210 @@ export default function MobileChannelList({
 }: MobileChannelListProps) {
   const [channels, setChannels] = useState<Channel[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [uncategorizedChannels, setUncategorizedChannels] = useState<Channel[]>([])
-  const [serverName, setServerName] = useState("")
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<number>>(new Set())
-  const [voiceUsers, setVoiceUsers] = useState<Record<number, number>>({})
-
+  const [server, setServer] = useState<Server | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [collapsedCategories, setCollapsedCategories] = useState<number[]>([])
   const supabase = createClientComponentClient()
 
-  const fetchChannels = useCallback(async () => {
-    if (!serverId) return
-
+  const fetchServer = useCallback(async () => {
     try {
-      // Fetch server name
-      const { data: serverData, error: serverError } = await supabase
+      const { data, error } = await supabase
         .from("servers")
-        .select("name")
+        .select("id, name, is_verified, avatar_url, banner_url")
         .eq("id", serverId)
         .single()
 
-      if (serverError) throw serverError
-      setServerName(serverData.name)
+      if (error) throw error
+      setServer(data)
+    } catch (error) {
+      console.error("Error fetching server:", error)
+    }
+  }, [supabase, serverId])
 
-      // Fetch categories
+  const fetchChannelsAndCategories = useCallback(async () => {
+    setIsLoading(true)
+    try {
       const { data: categoriesData, error: categoriesError } = await supabase
-        .from("channel_categories")
+        .from("categories")
         .select("*")
         .eq("server_id", serverId)
         .order("position")
 
       if (categoriesError) throw categoriesError
+      setCategories(categoriesData || [])
 
-      // Fetch channels
       const { data: channelsData, error: channelsError } = await supabase
         .from("channels")
         .select("*")
         .eq("server_id", serverId)
-        .order("name")
+        .order("position")
 
       if (channelsError) throw channelsError
+      setChannels(channelsData || [])
 
-      const allChannels = channelsData || []
-      setChannels(allChannels)
-
-      // Group channels by category
-      const categoriesWithChannels = (categoriesData || []).map((category) => ({
-        ...category,
-        channels: allChannels.filter((channel) => channel.category_id === category.id),
-      }))
-
-      setCategories(categoriesWithChannels)
-      setUncategorizedChannels(allChannels.filter((channel) => !channel.category_id))
+      return { categories: categoriesData, channels: channelsData }
     } catch (error) {
-      console.error("Error fetching channels:", error)
+      console.error("Error fetching channels and categories:", error)
+      return { categories: [], channels: [] }
+    } finally {
+      setIsLoading(false)
     }
-  }, [serverId, supabase])
-
-  // Fetch voice channel user counts
-  const fetchVoiceUsers = useCallback(async () => {
-    if (!serverId) return
-
-    try {
-      const { data, error } = await supabase
-        .from("voice_sessions")
-        .select(`
-          channel_id,
-          channels!inner(server_id)
-        `)
-        .eq("channels.server_id", serverId)
-
-      if (error) throw error
-
-      const counts: Record<number, number> = {}
-      data.forEach((session) => {
-        counts[session.channel_id] = (counts[session.channel_id] || 0) + 1
-      })
-
-      setVoiceUsers(counts)
-    } catch (error) {
-      console.error("Error fetching voice users:", error)
-    }
-  }, [serverId, supabase])
+  }, [supabase, serverId])
 
   useEffect(() => {
-    fetchChannels()
-    fetchVoiceUsers()
-  }, [fetchChannels, fetchVoiceUsers])
+    fetchServer()
+    fetchChannelsAndCategories()
+  }, [fetchServer, fetchChannelsAndCategories])
 
-  // Subscribe to voice session changes
   useEffect(() => {
-    if (!serverId) return
-
-    const channel = supabase
-      .channel(`voice_sessions_${serverId}`)
+    const channelChannel = supabase
+      .channel(`custom-server-channel-${serverId}`)
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "voice_sessions",
-        },
+        { event: "*", schema: "public", table: "channels", filter: `server_id=eq.${serverId}` },
         () => {
-          fetchVoiceUsers()
+          fetchChannelsAndCategories()
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "categories", filter: `server_id=eq.${serverId}` },
+        () => {
+          fetchChannelsAndCategories()
         },
       )
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(channelChannel)
     }
-  }, [serverId, supabase, fetchVoiceUsers])
+  }, [serverId, supabase, fetchChannelsAndCategories])
 
-  const toggleCategory = (categoryId: number) => {
-    const newCollapsed = new Set(collapsedCategories)
-    if (newCollapsed.has(categoryId)) {
-      newCollapsed.delete(categoryId)
-    } else {
-      newCollapsed.add(categoryId)
-    }
-    setCollapsedCategories(newCollapsed)
+  const handleSelectChannel = (channelId: number, channelName: string) => {
+    onSelectChannel(channelId, channelName, serverId)
   }
 
-  const handleLeaveServer = async () => {
-    if (!serverId || !onLeaveServer) return
-
-    if (confirm("Are you sure you want to leave this server?")) {
-      try {
-        const { error } = await supabase
-          .from("server_members")
-          .delete()
-          .eq("server_id", serverId)
-          .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
-
-        if (error) throw error
-
-        onLeaveServer(serverId)
-      } catch (error) {
-        console.error("Error leaving server:", error)
-      }
-    }
-  }
-
-  const renderChannel = (channel: Channel) => {
-    const isSelected = selectedChannelId === channel.id
-    const userCount = voiceUsers[channel.id] || 0
-
-    return (
-      <div
-        key={channel.id}
-        className={`flex items-center px-3 py-2 mx-2 rounded cursor-pointer ${
-          isSelected ? "bg-[#404249] text-white" : "text-[#949ba4] hover:bg-[#35373c] hover:text-[#dcddde]"
-        }`}
-        onClick={() => onSelectChannel(channel.id, channel.name, serverId!, channel.channel_type)}
-      >
-        {channel.channel_type === "voice" ? (
-          <Volume2 className="w-5 h-5 mr-3 flex-shrink-0" />
-        ) : (
-          <Hash className="w-5 h-5 mr-3 flex-shrink-0" />
-        )}
-        <span className="flex-1 truncate">{channel.name}</span>
-
-        {/* Voice channel user count */}
-        {channel.channel_type === "voice" && userCount > 0 && (
-          <span className="text-xs bg-[#5865f2] text-white px-2 py-1 rounded-full ml-2">{userCount}</span>
-        )}
-      </div>
+  const toggleCategoryCollapse = (categoryId: number) => {
+    setCollapsedCategories((prev) =>
+      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId],
     )
   }
 
-  if (!serverId) {
+  if (isLoading) {
     return (
       <div className="flex-1 bg-[#2b2d31] flex items-center justify-center">
-        <p className="text-[#949ba4]">Select a server</p>
+        <SimpleLoadingSpinner />
       </div>
     )
   }
 
+  // Pass the onLeaveServer prop to the ChannelList component
   return (
-    <div className="flex-1 bg-[#2b2d31] flex flex-col">
-      {/* Server header */}
-      <div className="h-12 px-4 flex items-center justify-between border-b border-[#1e1f22] shadow-sm">
-        <h1 className="font-semibold text-white truncate">{serverName}</h1>
-        <Button variant="ghost" size="sm" onClick={handleLeaveServer} className="p-1 h-auto">
-          <LogOut className="w-5 h-5 text-[#949ba4] hover:text-white" />
-        </Button>
-      </div>
-
-      {/* Channels list */}
-      <div className="flex-1 overflow-y-auto py-2">
-        {/* Uncategorized channels */}
-        {uncategorizedChannels.length > 0 && <div className="mb-2">{uncategorizedChannels.map(renderChannel)}</div>}
-
-        {/* Categories */}
-        {categories.map((category) => (
-          <div key={category.id} className="mb-2">
-            <div
-              className="flex items-center px-3 py-2 mx-2 text-sm font-semibold text-[#949ba4] uppercase tracking-wide cursor-pointer hover:text-[#dcddde]"
-              onClick={() => toggleCategory(category.id)}
-            >
-              {collapsedCategories.has(category.id) ? (
-                <ChevronRight className="w-4 h-4 mr-2" />
-              ) : (
-                <ChevronDown className="w-4 h-4 mr-2" />
-              )}
-              <span className="flex-1">{category.name}</span>
+    <div className="flex-1 h-full overflow-hidden">
+      <div className="flex-1 bg-[#2b2d31] flex flex-col h-full overflow-hidden">
+        {server?.banner_url ? (
+          // Header with banner
+          <div className="relative">
+            {/* Banner Image */}
+            <div className="h-[100px] relative overflow-hidden">
+              <img
+                src={server.banner_url || "/placeholder.svg"}
+                alt="Server Banner"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-[#2b2d31]" />
             </div>
 
-            {!collapsedCategories.has(category.id) && (
-              <div className="ml-2">{category.channels.map(renderChannel)}</div>
-            )}
+            {/* Server Info */}
+            <div className="absolute bottom-4 w-full px-4">
+              <div className="flex items-center">
+                <h1
+                  className={`font-semibold text-white truncate ${server.is_verified ? "max-w-[150px]" : "max-w-[180px]"}`}
+                >
+                  {server.name}
+                </h1>
+                {server.is_verified && (
+                  <div className="w-[18px] h-[18px] relative flex items-center ml-1">
+                    <Image
+                      src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/free-icon-verified-7264008-c0PjVXx2OewNOpuv9qO7qadgeOy5yh.png"
+                      alt="Verified"
+                      width={16}
+                      height={16}
+                      className="invert"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        ))}
+        ) : (
+          // Original header without banner
+          <div className="h-12 px-4 flex items-center border-b border-[#1e1f22] shadow-sm">
+            <div className="flex items-center">
+              <h1
+                className={`font-semibold text-white truncate ${server?.is_verified ? "max-w-[150px]" : "max-w-[180px]"}`}
+              >
+                {server?.name || "Loading..."}
+              </h1>
+              {server?.is_verified && (
+                <div className="w-[18px] h-[18px] relative flex items-center ml-1">
+                  <Image
+                    src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/free-icon-verified-7264008-c0PjVXx2OewNOpuv9qO7qadgeOy5yh.png"
+                    alt="Verified"
+                    width={16}
+                    height={16}
+                    className="invert"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-2 pt-4 pb-20">
+            {categories.map((category) => (
+              <div key={category.id} className="mb-2">
+                <button
+                  className="flex items-center justify-between w-full px-2 group"
+                  onClick={() => toggleCategoryCollapse(category.id)}
+                >
+                  <div className="flex items-center text-xs font-semibold text-[#949ba4] uppercase tracking-wide">
+                    <ChevronDown
+                      className={`w-3 h-3 mr-0.5 transition-transform ${
+                        collapsedCategories.includes(category.id) ? "-rotate-90" : ""
+                      }`}
+                    />
+                    {category.name}
+                  </div>
+                </button>
+                {!collapsedCategories.includes(category.id) ||
+                channels.some((ch) => ch.category_id === category.id && ch.id === selectedChannelId) ? (
+                  <div className="mt-1 space-y-0.5">
+                    {channels
+                      .filter((channel) => channel.category_id === category.id)
+                      .filter(
+                        (channel) => !collapsedCategories.includes(category.id) || channel.id === selectedChannelId,
+                      )
+                      .map((channel) => (
+                        <Button
+                          key={channel.id}
+                          variant="ghost"
+                          className={`w-full h-8 justify-start px-2 py-0 text-[#949ba4] hover:text-white hover:bg-[#36373d] rounded-md ${
+                            selectedChannelId === channel.id ? "bg-[#36373d] text-white" : ""
+                          }`}
+                          onClick={() => handleSelectChannel(channel.id, channel.name)}
+                        >
+                          <Hash className="w-4 h-4 mr-1 shrink-0" />
+                          <span className="truncate">{channel.name}</span>
+                        </Button>
+                      ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

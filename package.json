@@ -6,18 +6,16 @@
     "@supabase/auth-helpers-nextjs": "latest",
     "@supabase/supabase-js": "latest",
     "@tanstack/react-query": "latest",
+    "@types/react": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "latest",
     "framer-motion": "latest",
     "lucide-react": "^0.454.0",
-    "next": "15.2.4",
     "next-auth": "latest",
     "nodemailer": "latest",
     "os": "latest",
-    "react": "^19",
     "react-colorful": "latest",
-    "react-dom": "^19",
     "react-markdown": "latest",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
@@ -25,10 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^22",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
     "postcss": "^8.5",
-    "tailwindcss": "4.1.13",
     "typescript": "^5"
   }
 }
