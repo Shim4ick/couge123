@@ -3,6 +3,7 @@
     "@auth/core": "latest",
     "@emotion/is-prop-valid": "latest",
     "@emotion/react": "latest",
+    "@radix-ui/react-slot": "latest",
     "@supabase/auth-helpers-nextjs": "latest",
     "@supabase/supabase-js": "latest",
     "@tanstack/react-query": "latest",
@@ -19,8 +20,10 @@
     "react-colorful": "latest",
     "react-dom": "19.2.0",
     "react-markdown": "latest",
+    "recharts": "latest",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
+    "tw-animate-css": "latest",
     "uuid": "latest"
   },
   "devDependencies": {
