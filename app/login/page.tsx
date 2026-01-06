@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -66,7 +66,7 @@ export default function CougeLogin() {
   const [locale, setLocale] = useState<Locale>("en")
   const t = locale === "ru" ? ru : locale === "uk" ? uk : en
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([])
-  const supabase = createClient()
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
     const detectLanguage = () => {
@@ -88,9 +88,9 @@ export default function CougeLogin() {
       try {
         const { data, error } = await supabase.from("invite_codes").select("count").single()
         if (error) throw error
-        console.log("[v0] Supabase connection in client component successful")
+        console.log("Supabase connection in client component successful")
       } catch (error) {
-        console.error("[v0] Error connecting to Supabase in client component:", error)
+        console.error("Error connecting to Supabase in client component:", error)
       }
     }
 
@@ -160,7 +160,7 @@ export default function CougeLogin() {
     }
 
     try {
-      console.log("[v0] Submitting account creation form")
+      console.log("Submitting account creation form")
       let avatarUrl = null
       if (avatarFile) {
         // Создаем безопасное имя файла без пробелов и специальных символов
@@ -169,7 +169,7 @@ export default function CougeLogin() {
         const { data, error } = await supabase.storage.from("avatars").upload(safeFileName, avatarFile)
 
         if (error) {
-          console.error("[v0] Avatar upload error:", error)
+          console.error("Avatar upload error:", error)
           // Продолжаем без аватара, если загрузка не удалась
         } else {
           const {
@@ -181,7 +181,7 @@ export default function CougeLogin() {
       }
 
       const result = await createAccount(inviteCode, email, password, username, nickname, avatarUrl)
-      console.log("[v0] Account creation result:", result)
+      console.log("Account creation result:", result)
       if (result.success) {
         resetFields()
         setStep("login")
@@ -189,7 +189,7 @@ export default function CougeLogin() {
         setFieldErrors({ [result.field || "username"]: t[result.error as keyof typeof t] || result.error })
       }
     } catch (error) {
-      console.error("[v0] Error in handleSetupSubmit:", error)
+      console.error("Error in handleSetupSubmit:", error)
       setFieldErrors({ username: t.unexpectedError })
     } finally {
       setIsLoading(false)
@@ -260,7 +260,7 @@ export default function CougeLogin() {
         window.location.reload()
       }
     } catch (error) {
-      console.error("[v0] Error during quick login:", error)
+      console.error("Error during quick login:", error)
       toast({
         title: "Ошибка",
         description: "Не удалось войти в аккаунт. Пожалуйста, войдите снова.",
@@ -318,7 +318,7 @@ export default function CougeLogin() {
                     />
                   </motion.div>
                   <motion.div layout>
-                    <CardTitle className="text-2xl font-bold text-center text-white text-balance">
+                    <CardTitle className="text-2xl font-bold text-center text-white">
                       {step === "invite" && t.welcomeMessage}
                       {step === "setup" && t.setupAccount}
                       {step === "login" && t.loginToAccount}
@@ -500,7 +500,7 @@ export default function CougeLogin() {
                           />
                           {avatar && (
                             <Avatar className="w-20 h-20 mx-auto mt-2 rounded-2xl">
-                              <AvatarImage src={avatar || "/placeholder.svg"} alt="User Avatar" />
+                              <AvatarImage src={avatar} alt="User Avatar" />
                               <AvatarFallback className="bg-gradient-to-r from-zinc-600 to-zinc-500">
                                 {nickname.slice(0, 2).toUpperCase()}
                               </AvatarFallback>
@@ -613,7 +613,7 @@ export default function CougeLogin() {
                                   key={account.id}
                                   type="button"
                                   variant="outline"
-                                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-transparent"
+                                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl"
                                   onClick={() => handleQuickLogin(account)}
                                 >
                                   <span className="flex items-center gap-2">

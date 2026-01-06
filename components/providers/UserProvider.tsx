@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect, createContext, useContext } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 // Import the usePresence hook
 import { usePresence } from "@/hooks/usePresence"
@@ -18,7 +18,7 @@ const UserContext = createContext<UserContextType>({
 
 export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<any | null>(null)
-  const supabase = createClient()
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -28,7 +28,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       setCurrentUser(user)
     }
     fetchUser()
-  }, [supabase])
+  }, [supabase.auth])
 
   // Inside the UserProvider component, after the useEffect hook that fetches the user, add:
   // Use the presence hook to track user online status

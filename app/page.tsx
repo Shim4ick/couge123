@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import ServerList from "@/components/ServerList"
 import ChannelList from "@/components/ChannelList"
 import ChatArea from "@/components/ChatArea"
@@ -44,8 +44,7 @@ export default function Home() {
   const [mobileView, setMobileView] = useState<"servers" | "channels" | "chat">("servers")
   const [isJoinServerModalOpen, setIsJoinServerModalOpen] = useState(false)
   const [inviteCodeToJoin, setInviteCodeToJoin] = useState<string | null>(null)
-
-  const supabase = createClient()
+  const supabase = createClientComponentClient()
 
   const fetchServers = useCallback(async () => {
     const {
@@ -58,7 +57,7 @@ export default function Home() {
         .eq("user_id", user.id)
 
       if (memberError) {
-        console.error("[v0] Error fetching server memberships:", memberError)
+        console.error("Error fetching server memberships:", memberError)
         return
       }
 
@@ -79,7 +78,7 @@ export default function Home() {
           `)
           .in("id", serverIds)
         if (error) {
-          console.error("[v0] Error fetching servers:", error)
+          console.error("Error fetching servers:", error)
         } else {
           setServers(data || [])
         }
@@ -109,7 +108,7 @@ export default function Home() {
           }
         }
       } catch (error) {
-        console.error("[v0] Error checking auth status:", error)
+        console.error("Error checking auth status:", error)
       } finally {
         setTimeout(() => setIsLoading(false), 500)
       }
@@ -180,7 +179,7 @@ export default function Home() {
       setSelectedChannelName(null)
       setServers([])
     } catch (error) {
-      console.error("[v0] Error signing out:", error)
+      console.error("Error signing out:", error)
     } finally {
       setIsLoading(false)
     }
@@ -198,6 +197,7 @@ export default function Home() {
     }
   }
 
+  // Modify the handleServerClick function to distinguish between home and actual servers
   const handleServerClick = (serverId: number) => {
     setSelectedServer(serverId)
 
@@ -249,12 +249,13 @@ export default function Home() {
           setSelectedChannelName(null)
         }
       } catch (error) {
-        console.error("[v0] Error deleting server:", error)
+        console.error("Error deleting server:", error)
         alert("Error deleting server. Please try again.")
       }
     }
   }
 
+  // Add this function inside the Home component, after the handleDeleteServer function
   const handleLeaveServer = (serverId: number) => {
     // Remove the server from the servers list
     setServers(servers.filter((server) => server.id !== serverId))
