@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Search, Check } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -29,7 +29,7 @@ export default function RoleMembersTab({ serverId, roleId }: RoleMembersTabProps
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
   const [initialSelectedMembers, setInitialSelectedMembers] = useState<Set<string>>(new Set())
   const [isSaving, setIsSaving] = useState(false)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     if (serverId && roleId) {

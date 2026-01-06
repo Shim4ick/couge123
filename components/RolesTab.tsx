@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Search, Plus, ChevronLeft, Pencil, MoreHorizontal, X, Check } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -46,7 +46,7 @@ export default function RolesTab({ serverId }: RolesTabProps) {
   const [displaySeparately, setDisplaySeparately] = useState(false)
   const [activeTab, setActiveTab] = useState("display")
   const [isSaving, setIsSaving] = useState(false)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   // Добавить состояние для отслеживания изменений
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)

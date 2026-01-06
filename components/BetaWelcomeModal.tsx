@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
@@ -16,7 +16,10 @@ export function BetaWelcomeModal({ isOpen, onClose }: BetaWelcomeModalProps) {
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false)
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
 
   useEffect(() => {
     checkWelcomeStatus()

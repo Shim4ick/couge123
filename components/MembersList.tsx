@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import SimpleLoadingSpinner from "@/components/SimpleLoadingSpinner"
@@ -28,7 +28,7 @@ export default function MembersList({ serverId }: MembersListProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     fetchMembers()

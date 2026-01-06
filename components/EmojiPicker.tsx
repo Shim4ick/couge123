@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useMemo } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Search, Clock, ChevronRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import SimpleLoadingSpinner from "@/components/SimpleLoadingSpinner"
@@ -46,7 +46,7 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, currentSer
   const [collapsedServers, setCollapsedServers] = useState<Set<number>>(new Set())
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
   const pickerRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)

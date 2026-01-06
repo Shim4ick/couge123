@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -34,7 +34,7 @@ export default function InviteModal({ isOpen, onClose, serverId }: InviteModalPr
   const [server, setServer] = useState<Server | null>(null)
   const [isCopied, setIsCopied] = useState(false)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     if (isOpen) {

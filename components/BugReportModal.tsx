@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 
 interface BugReportModalProps {
   isOpen: boolean
@@ -27,7 +27,7 @@ export function BugReportModal({ isOpen, onClose, messageId }: BugReportModalPro
   const [category, setCategory] = useState<string>("")
   const [description, setDescription] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   const handleSubmit = async () => {
     if (!category || !description.trim()) {

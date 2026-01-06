@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Hash, Plus, X, Reply, Ban, ArrowLeft } from "lucide-react"
@@ -90,7 +90,7 @@ export default function MobileChatArea({ channelId, channelName, serverId, onBac
   const [newMessage, setNewMessage] = useState("")
   const [isMessagesLoading, setIsMessagesLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const chatContainerRef = useRef<HTMLDivElement>(null)

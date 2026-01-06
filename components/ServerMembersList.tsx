@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import SimpleLoadingSpinner from "@/components/SimpleLoadingSpinner"
 import UserProfileModal from "./UserProfileModal"
@@ -61,7 +61,7 @@ export default function ServerMembersList({ serverId }: ServerMembersListProps) 
   const [roles, setRoles] = useState<Role[]>([])
   const [memberRoles, setMemberRoles] = useState<Record<string, MemberRole[]>>({})
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     fetchMembers()

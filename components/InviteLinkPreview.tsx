@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Users } from "lucide-react"
@@ -26,7 +26,7 @@ interface ServerInfo {
 export default function InviteLinkPreview({ inviteCode }: InviteLinkPreviewProps) {
   const [status, setStatus] = useState<InviteStatus>("loading")
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     const checkInvite = async () => {
@@ -189,7 +189,7 @@ export default function InviteLinkPreview({ inviteCode }: InviteLinkPreviewProps
             {serverInfo.is_verified && (
               <div className="w-[18px] h-[18px] relative flex items-center ml-1">
                 <Image
-                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/free-icon-verified-7264008-c0PjVXx2OewNOpuv9qO7qadgeOy5yh.png"
+                  src="/images/free-icon-verified-7264008.png"
                   alt="Verified"
                   width={16}
                   height={16}

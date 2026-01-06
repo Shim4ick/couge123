@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { X, Folder, Hash } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,7 +32,7 @@ export default function ChannelSettings({ isOpen, onClose, channel, onChannelUpd
   const [isLoading, setIsLoading] = useState(false)
   const [categoryName, setCategoryName] = useState("")
   const [activeTab, setActiveTab] = useState("overview")
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     setChannelName(channel.name)

@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Upload, X, Check, Pencil } from "lucide-react"
@@ -43,7 +43,7 @@ export default function EmojisTab({ serverId }: EmojisTabProps) {
   const [editingEmojiId, setEditingEmojiId] = useState<number | null>(null)
   const [editingName, setEditingName] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     fetchEmojis()

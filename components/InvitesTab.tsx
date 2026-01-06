@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "@/components/ui/use-toast"
 import SimpleLoadingSpinner from "@/components/SimpleLoadingSpinner"
@@ -35,7 +35,7 @@ export default function InvitesTab({ serverId }: InvitesTabProps) {
   const [invites, setInvites] = useState<InviteLink[]>([])
   const [isDeletingInvite, setIsDeletingInvite] = useState<number | null>(null)
   const [hoverInviteId, setHoverInviteId] = useState<number | null>(null)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     fetchServerInviteStatus()

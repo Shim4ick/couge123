@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import SimpleLoadingSpinner from "@/components/SimpleLoadingSpinner"
 import { Badge, BadgeContainer, type BadgeType } from "./Badge"
 import { extractColors } from "@/utils/colorExtractor"
 import StatusIndicator from "./StatusIndicator"
-import type { UserStatus as UserStatusType } from "@/types/supabase" // Renamed to avoid conflict
+import type { UserStatus as UserStatusType } from "@/types/supabase"
 import { Plus, Check, X } from "lucide-react"
 import {
   DropdownMenu,
@@ -139,7 +139,7 @@ export default function MiniUserProfile({
   const [roleSearchQuery, setRoleSearchQuery] = useState("")
   const [roleBeingRemoved, setRoleBeingRemoved] = useState<number | null>(null)
 
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   // Исправленная логика: только владелец сервера может управлять ролями других пользователей
   const canManageRoles = useMemo(() => {

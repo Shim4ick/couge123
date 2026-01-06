@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Hash, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import SimpleLoadingSpinner from "@/components/SimpleLoadingSpinner"
@@ -50,7 +50,7 @@ export default function MobileChannelList({
   const [server, setServer] = useState<Server | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [collapsedCategories, setCollapsedCategories] = useState<number[]>([])
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   const fetchServer = useCallback(async () => {
     try {
@@ -172,7 +172,7 @@ export default function MobileChannelList({
                 {server.is_verified && (
                   <div className="w-[18px] h-[18px] relative flex items-center ml-1">
                     <Image
-                      src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/free-icon-verified-7264008-c0PjVXx2OewNOpuv9qO7qadgeOy5yh.png"
+                      src="/images/free-icon-verified-7264008.png"
                       alt="Verified"
                       width={16}
                       height={16}
@@ -195,7 +195,7 @@ export default function MobileChannelList({
               {server?.is_verified && (
                 <div className="w-[18px] h-[18px] relative flex items-center ml-1">
                   <Image
-                    src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/free-icon-verified-7264008-c0PjVXx2OewNOpuv9qO7qadgeOy5yh.png"
+                    src="/images/free-icon-verified-7264008.png"
                     alt="Verified"
                     width={16}
                     height={16}

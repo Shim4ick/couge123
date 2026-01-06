@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react"
 import ReactMarkdown from "react-markdown"
 import MentionBadge from "./MentionBadge"
 import InviteLinkPreview from "./InviteLinkPreview"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 
 interface FormattedTextProps {
   content: string
@@ -15,7 +15,10 @@ interface FormattedTextProps {
 
 const FormattedText: React.FC<FormattedTextProps> = ({ content, serverId, onProfileClick, isEditing = false }) => {
   const [customEmojis, setCustomEmojis] = useState<Record<string, string>>({})
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
 
   useEffect(() => {
     const fetchCustomEmojis = async () => {

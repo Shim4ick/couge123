@@ -1,7 +1,7 @@
 "use client"
 
 import { forwardRef, type React, useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { v4 as uuidv4 } from "uuid"
 import type { AttachmentFile } from "./FilePreview"
 import WarningModal from "./WarningModal"
@@ -16,7 +16,10 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024
 
 const FileUpload = forwardRef<HTMLInputElement, FileUploadProps>(
   ({ channelId, onFileSelected, onUploadError }, ref) => {
-    const supabase = createClientComponentClient()
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
 
     // Add state for the warning modal
     const [isWarningModalOpen, setIsWarningModalOpen] = useState(false)

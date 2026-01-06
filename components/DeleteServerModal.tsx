@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,7 +25,7 @@ export default function DeleteServerModal({
 }: DeleteServerModalProps) {
   const [confirmationInput, setConfirmationInput] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   const handleDeleteServer = async () => {
     if (confirmationInput !== serverName) {
@@ -69,12 +69,11 @@ export default function DeleteServerModal({
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-[#B9BBBE]">
-            Are you sure you want to delete this server? This action is irreversible and will result in the deletion of all channels and
-            messages.
+            Are you sure you want to delete this server? This action is irreversible and will result in the deletion of
+            all channels and messages.
           </p>
           <p className="text-[#B9BBBE]">
-            Please enter the server name <span className="font-semibold">'{serverName}'</span> to
-            confirm:
+            Please enter the server name <span className="font-semibold">'{serverName}'</span> to confirm:
           </p>
           <Input
             value={confirmationInput}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -33,7 +33,7 @@ export default function JoinServerModal({ isOpen, onClose, inviteCode, fetchServ
   const [isMember, setIsMember] = useState(false)
   const [isJoining, setIsJoining] = useState(false)
   const [inviter, setInviter] = useState<any>(null)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     if (isOpen) {
@@ -192,7 +192,7 @@ export default function JoinServerModal({ isOpen, onClose, inviteCode, fetchServ
                         {server.is_verified && (
                           <div className="w-[18px] h-[18px] relative flex items-center">
                             <Image
-                              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/free-icon-verified-7264008-c0PjVXx2OewNOpuv9qO7qadgeOy5yh.png"
+                              src="/images/free-icon-verified-7264008.png"
                               alt="Verified"
                               width={16}
                               height={16}
