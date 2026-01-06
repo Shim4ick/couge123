@@ -1,18 +1,17 @@
 // Create a new API route to handle mention processing client-side instead of relying on database triggers
 
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
   const { content, channelId } = await request.json()
-  const supabase = createRouteHandlerClient({ cookies })
+  const supabase = await createClient()
 
   try {
     // Extract mentions from content
     const mentionRegex = /@(\w+)/g
     const mentionMatches = content.match(mentionRegex) || []
-    const usernames = mentionMatches.map((match) => match.substring(1))
+    const usernames = mentionMatches.map((match: string) => match.substring(1))
 
     // If no mentions, return empty array
     if (usernames.length === 0) {
@@ -52,8 +51,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Error fetching server members" }, { status: 500 })
     }
 
-    const memberIds = serverMembers.map((member) => member.user_id)
-    const validMentions = mentionedUsers.filter((user) => memberIds.includes(user.id)).map((user) => user.id)
+    const memberIds = serverMembers.map((member: { user_id: string }) => member.user_id)
+    const validMentions = mentionedUsers
+      .filter((user: { id: string }) => memberIds.includes(user.id))
+      .map((user: { id: string }) => user.id)
 
     return NextResponse.json({ mentions: validMentions })
   } catch (error) {

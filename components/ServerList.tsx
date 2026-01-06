@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import UserMenu from "./UserMenu"
 import { useCallback, useState, useRef, useEffect } from "react"
 import Image from "next/image"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 
 type Server = {
   id: number
@@ -45,7 +45,7 @@ export default function ServerList({
     console.log("Updating profile...")
   }, [])
 
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
   const [draggingServer, setDraggingServer] = useState<number | null>(null)
   const [dropIndicatorPosition, setDropIndicatorPosition] = useState<number | null>(null)
   const [sortedServers, setSortedServers] = useState<Server[]>([])

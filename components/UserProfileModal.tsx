@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 import { X } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import SimpleLoadingSpinner from "@/components/SimpleLoadingSpinner"
@@ -120,7 +120,7 @@ export default function UserProfileModal({ isOpen, onClose, userId, currentUserI
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [bannerColors, setBannerColors] = useState<string[]>([])
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
   const [isClosing, setIsClosing] = useState(false)
 
   const handleClose = () => {

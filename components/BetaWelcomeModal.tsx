@@ -86,14 +86,14 @@ export function BetaWelcomeModal({ isOpen, onClose }: BetaWelcomeModalProps) {
             <div className="p-6 space-y-6">
               <div className="flex justify-center">
                 <Image
-                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Frame%2077-Photoroom-Dl8eefxciIEKOnEYnfWuUYneMH45Xl.png"
+                  src="/images/frame-2077-photoroom.png"
                   alt="Couge Logo"
                   width={80}
                   height={80}
                   className="dark:invert-0"
                 />
               </div>
-              <h2 className="text-2xl font-bold text-center text-white">Welcome to the Couge Beta test!</h2>
+              <h2 className="text-2xl font-bold text-center text-white">Welcome to the Couge Beta Test!</h2>
               <div
                 ref={scrollAreaRef}
                 onScroll={handleScroll}
@@ -102,21 +102,20 @@ export function BetaWelcomeModal({ isOpen, onClose }: BetaWelcomeModalProps) {
                 <div className="space-y-4 text-[#B9BBBE]">
                   <p>Dear Beta Tester,</p>
                   <p>
-                    We are glad to welcome you to the beta testing of the Couge! Your participation is of great importance
-                    It means a lot to our team, and we look forward to your feedback to help us.
-                    improve the platform.
+                    We are thrilled to welcome you to the beta testing of Couge! Your participation means a great deal
+                    to our team, and we look forward to your feedback to help us improve the platform.
                   </p>
                   <p>
-                    Couge - this is a new word in the world of communications, combining the best features of modern messengers and
-                    social networks. We strive to create a space where communication becomes deeper.,
-                    interesting and productive.
+                    Couge is a new approach to modern communications, combining the best features of messengers and
+                    social networks. We strive to create a space where communication becomes deeper, more interesting,
+                    and more productive.
                   </p>
                   <div className="mt-4">
                     <button
                       onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
                       className={`flex items-center justify-between w-full px-4 py-2 text-left text-white bg-[#2f3136] rounded-lg focus:outline-none ${isInstructionsOpen ? "rounded-b-none" : ""}`}
                     >
-                      <span className="font-semibold">Instructions for the beta tester</span>
+                      <span className="font-semibold">Instructions for Beta Testers</span>
                       <ChevronDown
                         className={`w-5 h-5 transition-transform duration-300 ${
                           isInstructionsOpen ? "transform rotate-180" : ""
@@ -132,20 +131,20 @@ export function BetaWelcomeModal({ isOpen, onClose }: BetaWelcomeModalProps) {
                           transition={{ duration: 0.3 }}
                           className="bg-[#292b2f] rounded-b-lg px-4 py-3 space-y-2"
                         >
-                          <p>1. Explore all the features of the Couge and share your impressions.</p>
-                          <p>2. Pay attention to the user-friendliness and intuitive interface.</p>
+                          <p>1. Explore all the features of Couge and share your impressions.</p>
+                          <p>2. Pay attention to the user-friendliness and intuitiveness of the interface.</p>
                           <p>3. Test the app's performance on different devices.</p>
-                          <p>4. Try non-standard usage scenarios and report any errors.</p>
+                          <p>4. Try non-standard usage scenarios and report any errors you encounter.</p>
                           <p>5. Suggest ideas for improving existing features or adding new ones.</p>
                         </motion.div>
                       )}
                     </AnimatePresence>
                   </div>
                   <p>
-                    Your experience and feedback are invaluable to us. They will help make the Couge better for all future users.
-                    Feel free to share any ideas or problems you encounter.
+                    Your experience and feedback are invaluable to us. They will help make Couge better for all future
+                    users. Feel free to share any ideas or problems you encounter.
                   </p>
-                  <p>Thank you for your support and enthusiasm. Together we will create something really special!</p>
+                  <p>Thank you for your support and enthusiasm. Together we will create something truly special!</p>
                   <p>
                     With best wishes,
                     <br />
@@ -164,7 +163,7 @@ export function BetaWelcomeModal({ isOpen, onClose }: BetaWelcomeModalProps) {
                     : "bg-[#4E5058] text-[#B9BBBE] cursor-not-allowed"
                 }`}
               >
-                {hasScrolledToBottom ? "Start testing" : "Scroll to the end"}
+                {hasScrolledToBottom ? "Start Testing" : "Scroll to the end"}
               </Button>
             </div>
           </motion.div>

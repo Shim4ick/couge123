@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { User } from "lucide-react"
@@ -26,7 +26,7 @@ export default function DirectMessages() {
   const [newMessage, setNewMessage] = useState("")
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   useEffect(() => {
     fetchProfiles()

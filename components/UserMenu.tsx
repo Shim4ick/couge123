@@ -3,7 +3,7 @@
 import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import UserSettings from "./UserSettings"
@@ -38,7 +38,7 @@ export default function UserMenu({ user, onSignOut, onUpdateProfile }: UserMenuP
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false)
   const [accounts, setAccounts] = useState<Account[]>([])
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
   const [switchingAccountId, setSwitchingAccountId] = useState<string | null>(null)
   const [isFullScreenLoading, setIsFullScreenLoading] = useState(false)
 

@@ -4,7 +4,7 @@ import type React from "react"
 
 import "@/app/globals.css"
 import { useState, useEffect, useRef, useCallback } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Hash, Plus, X, Reply, Ban, Smile } from "lucide-react"
@@ -119,7 +119,8 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   const [isMessagesLoading, setIsMessagesLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState<any>(null)
-  const supabase = createClientComponentClient()
+  // Updated Supabase client initialization
+  const supabase = createClient()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const chatContainerRef = useRef<HTMLDivElement>(null)

@@ -1,7 +1,7 @@
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 
 export const getServers = async () => {
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()

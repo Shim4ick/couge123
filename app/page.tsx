@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 import ServerList from "@/components/ServerList"
 import ChannelList from "@/components/ChannelList"
 import ChatArea from "@/components/ChatArea"
@@ -44,7 +44,7 @@ export default function Home() {
   const [mobileView, setMobileView] = useState<"servers" | "channels" | "chat">("servers")
   const [isJoinServerModalOpen, setIsJoinServerModalOpen] = useState(false)
   const [inviteCodeToJoin, setInviteCodeToJoin] = useState<string | null>(null)
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   const fetchServers = useCallback(async () => {
     const {

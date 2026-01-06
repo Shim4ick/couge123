@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, type FormEvent } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 import { Users, UserPlus, Search, UserX, Check, X } from "lucide-react"
 import SimpleLoadingSpinner from "@/components/SimpleLoadingSpinner"
 import { Button } from "@/components/ui/button"
@@ -45,7 +45,7 @@ export default function HomePage() {
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null)
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   // Reset states when changing tabs
   useEffect(() => {

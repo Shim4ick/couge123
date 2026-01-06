@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect, useCallback } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 import { Hash, Plus, ChevronDown, Volume2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -81,7 +81,7 @@ export default function ChannelList({
   const [selectedCategoryForSettings, setSelectedCategoryForSettings] = useState<Category | null>(null)
   const [selectedChannelForSettings, setSelectedChannelForSettings] = useState<Channel | null>(null)
   const [selectedChannelType, setSelectedChannelType] = useState<"text" | "voice">("text")
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   const fetchServer = useCallback(async () => {
     try {
@@ -282,7 +282,7 @@ export default function ChannelList({
     }
 
     if (!selectedChannelId && !isLoading) {
-      // Вызываем selectDefaultChannel тоько когда к��налы загружены и нет выбранного канала
+      // Вызываем selectDefaultChannel тоько когда каналы загружены и нет выбранного канала
       selectDefaultChannel()
     }
   }, [channels, selectedChannelId, isLoading, onSelectChannel, serverId, selectDefaultChannel])
@@ -411,7 +411,7 @@ export default function ChannelList({
                     <TooltipTrigger>
                       <div className="w-[18px] h-[18px] relative flex items-center ml-1">
                         <img
-                          src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/free-icon-verified-7264008-c0PjVXx2OewNOpuv9qO7qadgeOy5yh.png"
+                          src="/images/free-icon-verified-7264008.png"
                           alt="Verified"
                           className="w-4 h-4 invert"
                           style={{ filter: "brightness(0) invert(1)" }}
@@ -483,7 +483,7 @@ export default function ChannelList({
                   <TooltipTrigger>
                     <div className="w-[18px] h-[18px] relative flex items-center ml-1">
                       <img
-                        src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/free-icon-verified-7264008-c0PjVXx2OewNOpuv9qO7qadgeOy5yh.png"
+                        src="/images/free-icon-verified-7264008.png"
                         alt="Verified"
                         className="w-4 h-4 invert"
                         style={{ filter: "brightness(0) invert(1)" }}

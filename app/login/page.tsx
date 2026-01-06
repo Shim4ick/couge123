@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -66,7 +66,7 @@ export default function CougeLogin() {
   const [locale, setLocale] = useState<Locale>("en")
   const t = locale === "ru" ? ru : locale === "uk" ? uk : en
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([])
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   useEffect(() => {
     const detectLanguage = () => {
@@ -310,7 +310,7 @@ export default function CougeLogin() {
                 <CardHeader className="space-y-1">
                   <motion.div layout className="flex justify-center mb-6">
                     <Image
-                      src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Frame%2077-Photoroom-Dl8eefxciIEKOnEYnfWuUYneMH45Xl.png"
+                      src="/images/frame-2077-photoroom.png"
                       alt="Couge Logo"
                       width={80}
                       height={80}
@@ -500,7 +500,7 @@ export default function CougeLogin() {
                           />
                           {avatar && (
                             <Avatar className="w-20 h-20 mx-auto mt-2 rounded-2xl">
-                              <AvatarImage src={avatar} alt="User Avatar" />
+                              <AvatarImage src={avatar || "/placeholder.svg"} alt="User Avatar" />
                               <AvatarFallback className="bg-gradient-to-r from-zinc-600 to-zinc-500">
                                 {nickname.slice(0, 2).toUpperCase()}
                               </AvatarFallback>
@@ -613,7 +613,7 @@ export default function CougeLogin() {
                                   key={account.id}
                                   type="button"
                                   variant="outline"
-                                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl"
+                                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-transparent"
                                   onClick={() => handleQuickLogin(account)}
                                 >
                                   <span className="flex items-center gap-2">

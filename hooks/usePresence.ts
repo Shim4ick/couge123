@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 
 export type UserStatus = "online" | "idle" | "dnd" | "offline"
@@ -14,7 +14,7 @@ export interface PresenceState {
 }
 
 export function usePresence(userId: string | undefined) {
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
   const channelRef = useRef<RealtimeChannel | null>(null)
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
 

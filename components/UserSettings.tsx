@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 import { Key, Mail, Pencil, X, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -131,7 +131,8 @@ export default function UserSettings({ isOpen, onClose }: UserSettingsProps) {
   const [isAvatarUploading, setIsAvatarUploading] = useState(false)
   const [isBannerUploading, setIsBannerUploading] = useState(false)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
-  const supabase = createClientComponentClient()
+  // Use the new Supabase client
+  const supabase = createClient()
   const { currentUser } = useUser()
   const [badges, setBadges] = useState<BadgeType[]>([])
   const [registrationDate, setRegistrationDate] = useState<Date | null>(null)
@@ -1080,11 +1081,7 @@ export default function UserSettings({ isOpen, onClose }: UserSettingsProps) {
                         {/* Basic Plan Header */}
                         <div className="p-6 border-r border-[#1e1f22]">
                           <div className="flex justify-center h-16 items-center">
-                            <img
-                              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/plus-basic-PDxJbQmWal6mb0o7r1DPUtmMoejNAO.png"
-                              alt="Plus Basic"
-                              className="h-10"
-                            />
+                            <img src="/images/plus-basic.png" alt="Plus Basic" className="h-10" />
                           </div>
                         </div>
 
