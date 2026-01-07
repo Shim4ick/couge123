@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Hash, Plus, X, Reply, Ban, Smile } from "lucide-react"
+import { Hash, Plus, X, Reply, Ban, Smile, ChevronUp, Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/components/ui/use-toast"
 import UserProfileModal from "./UserProfileModal"
@@ -37,7 +37,7 @@ type Message = {
     display_name: string
     avatar_url: string | null
     is_verified?: boolean
-    roleColor?: string // Add roleColor property to user
+    roleColor?: string
   }
   reply_to?: number | null
   updated_at?: string
@@ -57,7 +57,6 @@ type ChatAreaProps = {
   serverId: number
 }
 
-// Add a type for user roles
 type UserRole = {
   user_id: string
   role_id: number
@@ -69,6 +68,9 @@ type UserRole = {
     position: number
   }
 }
+
+const MESSAGES_PER_PAGE = 50
+const MESSAGES_BUFFER = 25
 
 const scrollbarStyles = css`
   &::-webkit-scrollbar {
@@ -109,17 +111,22 @@ const formatMessageTime = (date: Date) => {
 }
 
 const isNearBottom = (container: HTMLDivElement) => {
-  const threshold = 150 // increased threshold
+  const threshold = 150
   return container.scrollHeight - container.scrollTop - container.clientHeight < threshold
 }
 
 export default function ChatArea({ channelId, channelName, serverId }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([])
+  const [allMessages, setAllMessages] = useState<Message[]>([])
+  const [visibleStartIndex, setVisibleStartIndex] = useState(0)
+  const [hasMoreOlder, setHasMoreOlder] = useState(false)
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false)
+  const [totalMessageCount, setTotalMessageCount] = useState(0)
+
   const [newMessage, setNewMessage] = useState("")
   const [isMessagesLoading, setIsMessagesLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState<any>(null)
-  // Updated Supabase client initialization
   const supabase = createClient()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
@@ -151,6 +158,7 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 })
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
+  const scrollHeightBeforeLoad = useRef(0)
 
   const saveChannelInfoToCache = useCallback(
     (channelId: number, info: { description: string | null; allowMessages: boolean }) => {
@@ -181,13 +189,11 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     [],
   )
 
-  // Add a function to fetch user roles
   const fetchUserRoles = useCallback(
     async (userIds: string[]) => {
       if (!serverId || userIds.length === 0) return
 
       try {
-        // Fetch all roles for the server
         const { data: serverRoles, error: rolesError } = await supabase
           .from("server_roles")
           .select("*")
@@ -197,12 +203,10 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         if (rolesError) throw rolesError
 
         if (!serverRoles || serverRoles.length === 0) {
-          // Если ролей нет, очищаем состояние
           setUserRoles({})
           return
         }
 
-        // Fetch role assignments for the users
         const { data: roleMembers, error: membersError } = await supabase
           .from("role_members")
           .select(`
@@ -219,12 +223,10 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         if (membersError) throw membersError
 
         if (!roleMembers || roleMembers.length === 0) {
-          // Если назначений ролей нет, очищаем состояние
           setUserRoles({})
           return
         }
 
-        // Group roles by user_id
         const userRolesMap: Record<string, UserRole[]> = {}
         roleMembers.forEach((rm) => {
           if (!userRolesMap[rm.user_id]) {
@@ -236,7 +238,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         setUserRoles(userRolesMap)
       } catch (error) {
         console.error("Error fetching user roles:", error)
-        // В случае ошибки очищаем состояние ролей
         setUserRoles({})
       }
     },
@@ -247,16 +248,31 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     if (!channelId) return
     setIsMessagesLoading(true)
     try {
+      // First, get total count
+      const { count, error: countError } = await supabase
+        .from("messages")
+        .select("*", { count: "exact", head: true })
+        .eq("channel_id", channelId)
+
+      if (countError) throw countError
+
+      setTotalMessageCount(count || 0)
+      setHasMoreOlder((count || 0) > MESSAGES_PER_PAGE)
+
+      // Fetch only the last MESSAGES_PER_PAGE messages
       const { data, error } = await supabase
         .from("messages")
         .select("*")
         .eq("channel_id", channelId)
-        .order("created_at", { ascending: true })
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_PER_PAGE)
 
       if (error) throw error
 
-      // Fetch user information separately
-      const userIds = [...new Set(data.map((message) => message.user_id))]
+      // Reverse to get chronological order
+      const sortedData = data.reverse()
+
+      const userIds = [...new Set(sortedData.map((message) => message.user_id))]
       const { data: usersData, error: usersError } = await supabase
         .from("profiles")
         .select("id, username, display_name, avatar_url, is_verified")
@@ -264,8 +280,7 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
       if (usersError) throw usersError
 
-      // Сначала установим сообщения без цветов ролей
-      const messagesWithUsers = data.map((message) => {
+      const messagesWithUsers = sortedData.map((message) => {
         const user = usersData.find((user) => user.id === message.user_id)
         return {
           ...message,
@@ -273,9 +288,10 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         }
       })
 
+      setAllMessages(messagesWithUsers)
       setMessages(messagesWithUsers)
+      setVisibleStartIndex(0)
 
-      // Затем отдельно загрузим роли и обновим цвета
       fetchUserRoles(userIds)
     } catch (error) {
       console.error("Error fetching messages:", error)
@@ -289,11 +305,87 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     }
   }, [channelId, supabase, toast, fetchUserRoles])
 
+  const loadOlderMessages = useCallback(async () => {
+    if (!channelId || isLoadingOlder || !hasMoreOlder || allMessages.length === 0) return
+
+    setIsLoadingOlder(true)
+
+    // Save current scroll height to maintain position after loading
+    if (chatContainerRef.current) {
+      scrollHeightBeforeLoad.current = chatContainerRef.current.scrollHeight
+    }
+
+    try {
+      const oldestMessage = allMessages[0]
+
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("channel_id", channelId)
+        .lt("created_at", oldestMessage.created_at)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_BUFFER)
+
+      if (error) throw error
+
+      if (data.length === 0) {
+        setHasMoreOlder(false)
+        return
+      }
+
+      // Reverse to get chronological order
+      const sortedData = data.reverse()
+
+      const userIds = [...new Set(sortedData.map((message) => message.user_id))]
+      const { data: usersData, error: usersError } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url, is_verified")
+        .in("id", userIds)
+
+      if (usersError) throw usersError
+
+      const messagesWithUsers = sortedData.map((message) => {
+        const user = usersData?.find((user) => user.id === message.user_id)
+        return {
+          ...message,
+          user: user ? { ...user } : undefined,
+        }
+      })
+
+      // Prepend older messages
+      setAllMessages((prev) => [...messagesWithUsers, ...prev])
+      setMessages((prev) => [...messagesWithUsers, ...prev])
+
+      // Check if there are more older messages
+      setHasMoreOlder(data.length === MESSAGES_BUFFER)
+
+      // Fetch roles for new users
+      fetchUserRoles(userIds)
+
+      // Restore scroll position after DOM update
+      requestAnimationFrame(() => {
+        if (chatContainerRef.current) {
+          const newScrollHeight = chatContainerRef.current.scrollHeight
+          const scrollDiff = newScrollHeight - scrollHeightBeforeLoad.current
+          chatContainerRef.current.scrollTop = scrollDiff
+        }
+      })
+    } catch (error) {
+      console.error("Error loading older messages:", error)
+      toast({
+        title: "Error",
+        description: "Could not load older messages.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingOlder(false)
+    }
+  }, [channelId, isLoadingOlder, hasMoreOlder, allMessages, supabase, toast, fetchUserRoles])
+
   const fetchChannelInfo = useCallback(async () => {
     if (!channelId) return
 
     try {
-      // Загружаем описание канала
       const { data: channelData, error: channelError } = await supabase
         .from("channels")
         .select("description, allow_messages")
@@ -302,11 +394,9 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
       if (channelError) throw channelError
 
-      // Сразу обновляем описание и разрешения
       setChannelDescription(channelData.description)
       setAllowMessages(channelData.allow_messages !== false)
 
-      // Сохраняем в localStorage
       saveChannelInfoToCache(channelId, {
         description: channelData.description,
         allowMessages: channelData.allow_messages !== false,
@@ -329,10 +419,7 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   useEffect(() => {
     if (!channelId) return
 
-    // Сразу загружаем информацию о канале
     fetchChannelInfo()
-
-    // Загружаем сообщения
     fetchMessages()
 
     const channel = supabase
@@ -357,7 +444,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
             return
           }
 
-          // Fetch user information for the new message
           const { data: userData, error: userError } = await supabase
             .from("profiles")
             .select("id, username, display_name, avatar_url, is_verified")
@@ -369,7 +455,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
             return
           }
 
-          // Получаем роли для этого пользователя отдельно
           const roleColor = undefined
           try {
             const { data: userRoleData, error: roleError } = await supabase
@@ -392,7 +477,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
             },
           }
 
-          // Remove any pending message with the same content and update messages
           setPendingMessages((prev) =>
             prev.filter(
               (msg) =>
@@ -404,7 +488,9 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
             ),
           )
 
+          setAllMessages((currentMessages) => [...currentMessages, messageWithUser])
           setMessages((currentMessages) => [...currentMessages, messageWithUser])
+          setTotalMessageCount((prev) => prev + 1)
 
           if (isAtBottom) {
             scrollToBottom()
@@ -420,7 +506,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
   useEffect(() => {
     if (Object.keys(userRoles).length > 0 && messages.length > 0) {
-      // Update message user colors based on roles
       setMessages((prevMessages) =>
         prevMessages.map((message) => {
           if (!message.user) return message
@@ -428,7 +513,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
           const roles = userRoles[message.user.id] || []
           if (roles.length === 0) return message
 
-          // Sort roles by position (ascending) and take the first one (lowest position = highest priority)
           const highestPriorityRole = [...roles].sort((a, b) => a.role.position - b.role.position)[0]
 
           const roleStyle = highestPriorityRole.role.gradient_color
@@ -506,7 +590,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     const fileUrls: string[] = []
 
     for (const fileData of files) {
-      // Update status to uploading
       setAttachedFiles((prevFiles) =>
         prevFiles.map((file) => (file.id === fileData.id ? { ...file, status: "uploading" } : file)),
       )
@@ -533,13 +616,11 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
         fileUrls.push(publicUrl)
 
-        // Update status to ready with URL
         setAttachedFiles((prevFiles) =>
           prevFiles.map((file) => (file.id === fileData.id ? { ...file, status: "ready", url: publicUrl } : file)),
         )
       } catch (error) {
         console.error("Error uploading file:", error)
-        // Update status to error
         setAttachedFiles((prevFiles) =>
           prevFiles.map((file) => (file.id === fileData.id ? { ...file, status: "error" } : file)),
         )
@@ -555,13 +636,12 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   }
 
   const sendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault() // This prevents the default form submission
+    e.preventDefault()
 
     if (!channelId || (!newMessage.trim() && !attachedFiles.length && !replyingToMessage) || !currentUser) {
-      // If there's no message content but there is a reply, we should still allow sending
       if (replyingToMessage && !newMessage.trim() && !attachedFiles.length) {
-        setNewMessage(" ") // Add a space to ensure there's some content
-        return // Return to let the next render trigger the send
+        setNewMessage(" ")
+        return
       }
       return
     }
@@ -576,16 +656,13 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     setIsSending(true)
 
     try {
-      // First, upload any attached files
       let fileUrls: string[] = []
       if (attachedFiles.length > 0) {
         fileUrls = await uploadFilesToStorage(attachedFiles)
       }
 
-      // Process mentions client-side instead of relying on database triggers
       let mentions: string[] = []
 
-      // Only process mentions if the message contains @ symbols
       if (messageContent.includes("@")) {
         try {
           const response = await fetch("/api/process-mentions", {
@@ -605,19 +682,15 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
           }
         } catch (error) {
           console.error("Error processing mentions:", error)
-          // Continue with sending the message even if mention processing fails
         }
       }
 
-      // Add the replied-to user to mentions if mentionInReply is enabled
       if (replyingToMessage && mentionInReply && replyingToMessage.user_id) {
-        // Only add if not already in mentions
         if (!mentions.includes(replyingToMessage.user_id)) {
           mentions.push(replyingToMessage.user_id)
         }
       }
 
-      // Get role color for the current user
       const roles = userRoles[currentUser.id] || []
       let roleColor = undefined
 
@@ -628,7 +701,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
           : highestPriorityRole.role.color
       }
 
-      // Create a temporary message to show immediately
       const tempMessage: Message = {
         id: Date.now(),
         content: messageContent,
@@ -652,7 +724,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
       setPendingMessages((prev) => [...prev, tempMessage])
 
-      // Now send the message with the processed mentions and mention_in_reply flag
       const { error } = await supabase.from("messages").insert({
         content: messageContent,
         channel_id: channelId,
@@ -665,12 +736,10 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
       if (error) throw error
 
-      // Only clear everything after successful send
       setNewMessage("")
       setReplyingToMessage(null)
       setAttachedFiles([])
 
-      // Clear draft when sending
       setDraftMessages((prev) => ({
         ...prev,
         [channelId]: {
@@ -686,7 +755,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         description: "Failed to send message. Please try again.",
         variant: "destructive",
       })
-      // Remove the pending message if there was an error
       setPendingMessages((prev) => prev.filter((msg) => msg.id !== Date.now()))
     } finally {
       setIsSending(false)
@@ -699,7 +767,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
       const miniProfileWidth = 300
       const miniProfileHeight = 400
 
-      // Проверяем, помещается ли профиль справа от элемента
       const spaceOnRight = window.innerWidth - rect.right
       const spaceOnLeft = rect.left
       const spaceBelow = window.innerHeight - rect.top
@@ -707,12 +774,10 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
       let x = rect.right + 20
       let y = rect.top
 
-      // Если не помещается справа, показываем слева
       if (spaceOnRight < miniProfileWidth && spaceOnLeft > miniProfileWidth) {
         x = rect.left - miniProfileWidth - 20
       }
 
-      // Если не помещается снизу, корректируем позицию по Y
       if (spaceBelow < miniProfileHeight) {
         y = Math.max(10, window.innerHeight - miniProfileHeight - 10)
       }
@@ -728,11 +793,18 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     if (chatContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 150
+      const isNearTop = scrollTop < 100
+
       setIsAtBottom(isNearBottom)
       setShowJumpToBottom(!isNearBottom)
       lastScrollPositionRef.current = scrollTop
+
+      // Load older messages when scrolling near top
+      if (isNearTop && hasMoreOlder && !isLoadingOlder) {
+        loadOlderMessages()
+      }
     }
-  }, [])
+  }, [hasMoreOlder, isLoadingOlder, loadOlderMessages])
 
   useEffect(() => {
     const container = chatContainerRef.current
@@ -744,7 +816,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in another input or if key is a modifier
       if (
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA" ||
@@ -755,18 +826,15 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         return
       }
 
-      // Only handle alphanumeric keys, space, and punctuation
       if (e.key.length === 1) {
         e.preventDefault()
         inputRef.current?.focus()
-        // Set the value to the pressed key
         if (inputRef.current) {
           const input = inputRef.current
           const start = input.selectionStart || 0
           const end = input.selectionEnd || 0
           const newValue = input.value.slice(0, start) + e.key + input.value.slice(end)
           setNewMessage(newValue)
-          // Set cursor position after the inserted character
           requestAnimationFrame(() => {
             input.setSelectionRange(start + 1, start + 1)
           })
@@ -780,10 +848,8 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle if the input is focused
       if (document.activeElement !== inputRef.current) return
 
-      // If Enter is pressed without Shift, submit the form
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault()
         if (newMessage.trim() || attachedFiles.length > 0 || replyingToMessage) {
@@ -834,8 +900,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   }
 
   const handleEmojiSelect = (emoji: string, isCustom = false, customEmojiData?: any) => {
-    // Для кастомных эмодзи emoji уже содержит правильный формат :название:айди:
-    // Для обычных эмодзи - это просто символ эмодзи
     const emojiText = emoji
 
     if (inputRef.current) {
@@ -845,7 +909,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
       const newValue = input.value.slice(0, start) + emojiText + input.value.slice(end)
       setNewMessage(newValue)
 
-      // Update draft
       if (channelId) {
         setDraftMessages((prev) => ({
           ...prev,
@@ -857,7 +920,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         }))
       }
 
-      // Set cursor position after the emoji
       requestAnimationFrame(() => {
         input.focus()
         input.setSelectionRange(start + emojiText.length, start + emojiText.length)
@@ -870,12 +932,10 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
     const username = currentUser.user_metadata.display_name || currentUser.email?.split("@")[0] || "User"
 
-    // Clear existing timeout for this user
     if (currentUser?.id && typingTimeoutRef.current[currentUser.id]) {
       clearTimeout(typingTimeoutRef.current[currentUser.id])
     }
 
-    // Set typing status to true
     supabase
       .from("typing_status")
       .upsert(
@@ -883,7 +943,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         { onConflict: "user_id, channel_id" },
       )
       .then(() => {
-        // Set timeout to clear typing status
         if (currentUser?.id) {
           typingTimeoutRef.current[currentUser.id] = setTimeout(() => {
             supabase
@@ -948,7 +1007,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
       }))
     }
 
-    // Call handleTyping directly
     handleTyping()
   }
 
@@ -974,11 +1032,15 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
         if (error) throw error
 
-        // Update the local state
         setMessages((prevMessages) => {
           const updatedMessages = prevMessages.filter((msg) => msg.id !== messageId)
           return updatedMessages.map((msg) => (msg.reply_to === messageId ? { ...msg, reply_to: null } : msg))
         })
+        setAllMessages((prevMessages) => {
+          const updatedMessages = prevMessages.filter((msg) => msg.id !== messageId)
+          return updatedMessages.map((msg) => (msg.reply_to === messageId ? { ...msg, reply_to: null } : msg))
+        })
+        setTotalMessageCount((prev) => prev - 1)
 
         toast({
           title: "Successfully",
@@ -1007,7 +1069,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     const mentions = editedContent.match(mentionRegex)?.map((mention) => mention.slice(1)) || []
 
     try {
-      // Get the current message to preserve file_url
       const messageToEdit = messages.find((msg) => msg.id === editingMessageId)
 
       const { error } = await supabase
@@ -1016,7 +1077,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
           content: editedContent,
           updated_at: new Date().toISOString(),
           mentions: mentions,
-          // We don't update file_url, so it remains unchanged
         })
         .eq("id", editingMessageId)
 
@@ -1029,7 +1089,18 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
                 ...msg,
                 content: editedContent,
                 updated_at: new Date().toISOString(),
-                // Preserve the file_url
+                file_url: msg.file_url,
+              }
+            : msg,
+        ),
+      )
+      setAllMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === editingMessageId
+            ? {
+                ...msg,
+                content: editedContent,
+                updated_at: new Date().toISOString(),
                 file_url: msg.file_url,
               }
             : msg,
@@ -1127,7 +1198,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     setEditedContent(message.content)
   }
 
-  // Render file URLs as images in messages
   const renderMessageContent = (message: Message) => {
     if (!message.content && !message.file_url) return null
 
@@ -1177,19 +1247,15 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
   useEffect(() => {
     if (channelId) {
-      // Проверяем, есть ли информация в localStorage
       const cachedInfo = getChannelInfoFromCache(channelId)
       if (cachedInfo) {
         setChannelDescription(cachedInfo.description)
         setAllowMessages(cachedInfo.allowMessages)
       } else {
-        // Если нет в кэше, устанавливаем значения по умолчанию, но не null
-        // Это предотвратит мигание интерфейса
         setChannelDescription(channelDescription)
         setAllowMessages(true)
       }
 
-      // Загружаем информацию о канале
       const fetchChannelInfoImmediately = async () => {
         try {
           const { data, error } = await supabase
@@ -1199,7 +1265,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
             .single()
 
           if (!error && data) {
-            // Обновляем состояние и кэш
             setChannelDescription(data.description)
             setAllowMessages(data.allow_messages !== false)
             saveChannelInfoToCache(channelId, {
@@ -1214,7 +1279,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
       fetchChannelInfoImmediately()
 
-      // Проверяем права владельца сервера
       if (currentUser) {
         const checkOwnership = async () => {
           try {
@@ -1236,13 +1300,10 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   useEffect(() => {
     if (!currentUser) return
 
-    // Filter messages that mention the current user either directly or through reply
     const mentionsForUser = messages
       .filter(
         (msg) =>
-          // Direct mentions in the message content
           msg.mentions?.includes(currentUser.id) ||
-          // Mentions through reply with mention_in_reply enabled
           (msg.reply_to !== null &&
             msg.mention_in_reply === true &&
             messages.find((m) => m.id === msg.reply_to)?.user_id === currentUser.id),
@@ -1253,14 +1314,14 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   }, [messages, currentUser])
 
   useEffect(() => {
-    // Сбрасываем данные о ролях при смене сервера
     setUserRoles({})
-    // Также сбрасываем сообщения, чтобы избежать отображения старых данных
     setMessages([])
+    setAllMessages([])
+    setHasMoreOlder(false)
+    setTotalMessageCount(0)
   }, [serverId])
 
   useEffect(() => {
-    // Clear attached files when changing channels
     setAttachedFiles([])
   }, [channelId, serverId])
 
@@ -1274,8 +1335,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     )
   }
 
-  // Изменяем код для отображения скелетонов
-  // Создаем больше скелетонов для заполнения всего чата
   const messageSkeletons = Array(8)
     .fill(0)
     .map((_, index) => <MessageSkeleton key={`skeleton-${index}`} />)
@@ -1321,11 +1380,28 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         css={scrollbarStyles}
         style={{ scrollbarWidth: "thin", scrollbarColor: "#1e1f22 #2b2d31" }}
       >
+        {hasMoreOlder && (
+          <div className="flex justify-center py-2">
+            {isLoadingOlder ? (
+              <div className="flex items-center gap-2 text-[#949ba4] text-sm">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Loading older messages...</span>
+              </div>
+            ) : (
+              <button
+                onClick={loadOlderMessages}
+                className="flex items-center gap-2 text-[#949ba4] text-sm hover:text-white transition-colors"
+              >
+                <ChevronUp className="w-4 h-4" />
+                <span>Load older messages</span>
+              </button>
+            )}
+          </div>
+        )}
         {isMessagesLoading ? (
-          // Показываем скелетоны во время загрузки сообщений
           <div className="space-y-6">{messageSkeletons}</div>
         ) : (
-          ([...messages, ...pendingMessages] as Message[]) // Explicitly cast to Message[]
+          ([...messages, ...pendingMessages] as Message[])
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
             .reduce((acc: React.ReactNode[], message, index, array) => {
               const messageDate = new Date(message.created_at)
@@ -1464,8 +1540,7 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
                               </div>
                             )}
                           </div>
-                        ) : // Replace the older content rendering with our new method
-                        message.status === "pending" ? (
+                        ) : message.status === "pending" ? (
                           <div className="text-[#72767d]">{message.content}</div>
                         ) : (
                           renderMessageContent(message)
@@ -1540,7 +1615,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
                   className="bg-transparent text-white placeholder-[#949ba4] focus:outline-none border-none text-base py-6"
                   disabled={isSending || isUploading}
                 />
-                {/* Render formatted text overlay for preview */}
                 <div className="absolute inset-0 pointer-events-none py-6 px-3 text-base overflow-hidden">
                   <div className="opacity-0">
                     <FormattedText
@@ -1607,7 +1681,7 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
           }
         }
         .mention-highlight {
-          background-color: rgba(255, 255, 0, 0.1); /* Yellow highlight */
+          background-color: rgba(255, 255, 0, 0.1);
         }
       `}</style>
     </div>
