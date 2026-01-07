@@ -2,7 +2,6 @@
 
 import type React from "react"
 
-import "@/app/globals.css"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -108,10 +107,9 @@ const formatMessageTime = (date: Date) => {
   }
 }
 
-const isNearBottom = (container: HTMLDivElement) => {
-  const threshold = 150 // increased threshold
-  return container.scrollHeight - container.scrollTop - container.clientHeight < threshold
-}
+const MESSAGES_PAGE_SIZE = 50
+const MAX_VISIBLE_MESSAGES = 200
+const TOP_SCROLL_THRESHOLD = 120
 
 export default function ChatArea({ channelId, channelName, serverId }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -151,6 +149,10 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 })
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
+  const [hasMoreMessages, setHasMoreMessages] = useState(true)
+  const [isFetchingMore, setIsFetchingMore] = useState(false)
+  const [hasNewerMessages, setHasNewerMessages] = useState(false)
+  const [isFetchingNewer, setIsFetchingNewer] = useState(false)
 
   const saveChannelInfoToCache = useCallback(
     (channelId: number, info: { description: string | null; allowMessages: boolean }) => {
@@ -243,19 +245,9 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     [serverId, supabase],
   )
 
-  const fetchMessages = useCallback(async () => {
-    if (!channelId) return
-    setIsMessagesLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("channel_id", channelId)
-        .order("created_at", { ascending: true })
-
-      if (error) throw error
-
-      // Fetch user information separately
+  const hydrateMessages = useCallback(
+    async (data: Message[]) => {
+      if (data.length === 0) return []
       const userIds = [...new Set(data.map((message) => message.user_id))]
       const { data: usersData, error: usersError } = await supabase
         .from("profiles")
@@ -264,19 +256,40 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
       if (usersError) throw usersError
 
-      // Сначала установим сообщения без цветов ролей
       const messagesWithUsers = data.map((message) => {
-        const user = usersData.find((user) => user.id === message.user_id)
+        const user = usersData.find((profile) => profile.id === message.user_id)
         return {
           ...message,
           user: user ? { ...user } : undefined,
         }
       })
 
-      setMessages(messagesWithUsers)
-
-      // Затем отдельно загрузим роли и обновим цвета
       fetchUserRoles(userIds)
+
+      return messagesWithUsers
+    },
+    [fetchUserRoles, supabase],
+  )
+
+  const fetchMessages = useCallback(async () => {
+    if (!channelId) return
+    setIsMessagesLoading(true)
+    setHasMoreMessages(true)
+    setHasNewerMessages(false)
+    try {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("channel_id", channelId)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_PAGE_SIZE)
+
+      if (error) throw error
+
+      const sortedMessages = [...(data ?? [])].reverse()
+      const messagesWithUsers = await hydrateMessages(sortedMessages)
+      setMessages(messagesWithUsers)
+      setHasMoreMessages((data ?? []).length === MESSAGES_PAGE_SIZE)
     } catch (error) {
       console.error("Error fetching messages:", error)
       toast({
@@ -287,7 +300,92 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     } finally {
       setIsMessagesLoading(false)
     }
-  }, [channelId, supabase, toast, fetchUserRoles])
+  }, [channelId, supabase, toast, hydrateMessages])
+
+  const fetchOlderMessages = useCallback(async () => {
+    if (!channelId || !hasMoreMessages || isFetchingMore || messages.length === 0) return
+    setIsFetchingMore(true)
+    const container = chatContainerRef.current
+    const previousScrollHeight = container?.scrollHeight ?? 0
+    const previousScrollTop = container?.scrollTop ?? 0
+
+    try {
+      const oldestMessage = messages[0]
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("channel_id", channelId)
+        .lt("created_at", oldestMessage.created_at)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_PAGE_SIZE)
+
+      if (error) throw error
+
+      const olderMessages = [...(data ?? [])].reverse()
+      if (olderMessages.length === 0) {
+        setHasMoreMessages(false)
+        return
+      }
+
+      const olderWithUsers = await hydrateMessages(olderMessages)
+      setMessages((prev) => {
+        const combined = [...olderWithUsers, ...prev]
+        if (combined.length <= MAX_VISIBLE_MESSAGES) return combined
+        setHasNewerMessages(true)
+        return combined.slice(0, MAX_VISIBLE_MESSAGES)
+      })
+      setHasMoreMessages((data ?? []).length === MESSAGES_PAGE_SIZE)
+    } catch (error) {
+      console.error("Error fetching older messages:", error)
+    } finally {
+      setIsFetchingMore(false)
+      if (container) {
+        requestAnimationFrame(() => {
+          const newScrollHeight = container.scrollHeight
+          const heightDiff = newScrollHeight - previousScrollHeight
+          container.scrollTop = previousScrollTop + heightDiff
+        })
+      }
+    }
+  }, [channelId, hasMoreMessages, hydrateMessages, isFetchingMore, messages, supabase])
+
+  const fetchNewerMessages = useCallback(async () => {
+    if (!channelId || !hasNewerMessages || isFetchingNewer || messages.length === 0) return
+    setIsFetchingNewer(true)
+    try {
+      const latestMessage = messages[messages.length - 1]
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("channel_id", channelId)
+        .gt("created_at", latestMessage.created_at)
+        .order("created_at", { ascending: true })
+        .limit(MESSAGES_PAGE_SIZE)
+
+      if (error) throw error
+
+      const newerMessages = data ?? []
+      if (newerMessages.length === 0) {
+        setHasNewerMessages(false)
+        return
+      }
+
+      const newerWithUsers = await hydrateMessages(newerMessages)
+      setMessages((prev) => {
+        const combined = [...prev, ...newerWithUsers]
+        if (combined.length <= MAX_VISIBLE_MESSAGES) return combined
+        return combined.slice(combined.length - MAX_VISIBLE_MESSAGES)
+      })
+      setHasNewerMessages(newerMessages.length === MESSAGES_PAGE_SIZE)
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: "smooth" })
+      }
+    } catch (error) {
+      console.error("Error fetching newer messages:", error)
+    } finally {
+      setIsFetchingNewer(false)
+    }
+  }, [channelId, hasNewerMessages, hydrateMessages, isFetchingNewer, messages, supabase])
 
   const fetchChannelInfo = useCallback(async () => {
     if (!channelId) return
@@ -328,6 +426,13 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
 
   useEffect(() => {
     if (!channelId) return
+
+    setMessages([])
+    setPendingMessages([])
+    setHasMoreMessages(true)
+    setIsFetchingMore(false)
+    setHasNewerMessages(false)
+    setIsFetchingNewer(false)
 
     // Сразу загружаем информацию о канале
     fetchChannelInfo()
@@ -404,7 +509,14 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
             ),
           )
 
-          setMessages((currentMessages) => [...currentMessages, messageWithUser])
+          setMessages((currentMessages) => {
+            const updated = [...currentMessages, messageWithUser]
+            if (updated.length <= MAX_VISIBLE_MESSAGES) return updated
+            if (isAtBottom) {
+              return updated.slice(updated.length - MAX_VISIBLE_MESSAGES)
+            }
+            return updated.slice(0, MAX_VISIBLE_MESSAGES)
+          })
 
           if (isAtBottom) {
             scrollToBottom()
@@ -731,8 +843,14 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
       setIsAtBottom(isNearBottom)
       setShowJumpToBottom(!isNearBottom)
       lastScrollPositionRef.current = scrollTop
+      if (scrollTop < TOP_SCROLL_THRESHOLD) {
+        fetchOlderMessages()
+      }
+      if (isNearBottom && hasNewerMessages) {
+        fetchNewerMessages()
+      }
     }
-  }, [])
+  }, [fetchOlderMessages, fetchNewerMessages, hasNewerMessages])
 
   useEffect(() => {
     const container = chatContainerRef.current

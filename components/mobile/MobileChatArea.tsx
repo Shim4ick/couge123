@@ -85,6 +85,10 @@ const formatMessageTime = (date: Date) => {
   }
 }
 
+const MESSAGES_PAGE_SIZE = 40
+const MAX_VISIBLE_MESSAGES = 160
+const TOP_SCROLL_THRESHOLD = 120
+
 export default function MobileChatArea({ channelId, channelName, serverId, onBack }: MobileChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
@@ -106,20 +110,14 @@ export default function MobileChatArea({ channelId, channelName, serverId, onBac
   const [channelDescription, setChannelDescription] = useState<string | null>(null)
   const [allowMessages, setAllowMessages] = useState(true)
   const [attachedFiles, setAttachedFiles] = useState<any[]>([])
+  const [hasMoreMessages, setHasMoreMessages] = useState(true)
+  const [isFetchingMore, setIsFetchingMore] = useState(false)
+  const [hasNewerMessages, setHasNewerMessages] = useState(false)
+  const [isFetchingNewer, setIsFetchingNewer] = useState(false)
 
-  const fetchMessages = useCallback(async () => {
-    if (!channelId) return
-    setIsMessagesLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("channel_id", channelId)
-        .order("created_at", { ascending: true })
-
-      if (error) throw error
-
-      // Fetch user information separately
+  const hydrateMessages = useCallback(
+    async (data: Message[]) => {
+      if (data.length === 0) return []
       const userIds = [...new Set(data.map((message) => message.user_id))]
       const { data: usersData, error: usersError } = await supabase
         .from("profiles")
@@ -128,15 +126,36 @@ export default function MobileChatArea({ channelId, channelName, serverId, onBac
 
       if (usersError) throw usersError
 
-      const messagesWithUsers = data.map((message) => {
-        const user = usersData.find((user) => user.id === message.user_id)
+      return data.map((message) => {
+        const user = usersData.find((profile) => profile.id === message.user_id)
         return {
           ...message,
           user: user ? { ...user } : undefined,
         }
       })
+    },
+    [supabase],
+  )
 
+  const fetchMessages = useCallback(async () => {
+    if (!channelId) return
+    setIsMessagesLoading(true)
+    setHasMoreMessages(true)
+    setHasNewerMessages(false)
+    try {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("channel_id", channelId)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_PAGE_SIZE)
+
+      if (error) throw error
+
+      const sortedMessages = [...(data ?? [])].reverse()
+      const messagesWithUsers = await hydrateMessages(sortedMessages)
       setMessages(messagesWithUsers)
+      setHasMoreMessages((data ?? []).length === MESSAGES_PAGE_SIZE)
     } catch (error) {
       console.error("Error fetching messages:", error)
       toast({
@@ -147,7 +166,92 @@ export default function MobileChatArea({ channelId, channelName, serverId, onBac
     } finally {
       setIsMessagesLoading(false)
     }
-  }, [channelId, supabase, toast])
+  }, [channelId, supabase, toast, hydrateMessages])
+
+  const fetchOlderMessages = useCallback(async () => {
+    if (!channelId || !hasMoreMessages || isFetchingMore || messages.length === 0) return
+    setIsFetchingMore(true)
+    const container = chatContainerRef.current
+    const previousScrollHeight = container?.scrollHeight ?? 0
+    const previousScrollTop = container?.scrollTop ?? 0
+
+    try {
+      const oldestMessage = messages[0]
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("channel_id", channelId)
+        .lt("created_at", oldestMessage.created_at)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_PAGE_SIZE)
+
+      if (error) throw error
+
+      const olderMessages = [...(data ?? [])].reverse()
+      if (olderMessages.length === 0) {
+        setHasMoreMessages(false)
+        return
+      }
+
+      const olderWithUsers = await hydrateMessages(olderMessages)
+      setMessages((prev) => {
+        const combined = [...olderWithUsers, ...prev]
+        if (combined.length <= MAX_VISIBLE_MESSAGES) return combined
+        setHasNewerMessages(true)
+        return combined.slice(0, MAX_VISIBLE_MESSAGES)
+      })
+      setHasMoreMessages((data ?? []).length === MESSAGES_PAGE_SIZE)
+    } catch (error) {
+      console.error("Error fetching older messages:", error)
+    } finally {
+      setIsFetchingMore(false)
+      if (container) {
+        requestAnimationFrame(() => {
+          const newScrollHeight = container.scrollHeight
+          const heightDiff = newScrollHeight - previousScrollHeight
+          container.scrollTop = previousScrollTop + heightDiff
+        })
+      }
+    }
+  }, [channelId, hasMoreMessages, hydrateMessages, isFetchingMore, messages, supabase])
+
+  const fetchNewerMessages = useCallback(async () => {
+    if (!channelId || !hasNewerMessages || isFetchingNewer || messages.length === 0) return
+    setIsFetchingNewer(true)
+    try {
+      const latestMessage = messages[messages.length - 1]
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("channel_id", channelId)
+        .gt("created_at", latestMessage.created_at)
+        .order("created_at", { ascending: true })
+        .limit(MESSAGES_PAGE_SIZE)
+
+      if (error) throw error
+
+      const newerMessages = data ?? []
+      if (newerMessages.length === 0) {
+        setHasNewerMessages(false)
+        return
+      }
+
+      const newerWithUsers = await hydrateMessages(newerMessages)
+      setMessages((prev) => {
+        const combined = [...prev, ...newerWithUsers]
+        if (combined.length <= MAX_VISIBLE_MESSAGES) return combined
+        return combined.slice(combined.length - MAX_VISIBLE_MESSAGES)
+      })
+      setHasNewerMessages(newerMessages.length === MESSAGES_PAGE_SIZE)
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: "smooth" })
+      }
+    } catch (error) {
+      console.error("Error fetching newer messages:", error)
+    } finally {
+      setIsFetchingNewer(false)
+    }
+  }, [channelId, hasNewerMessages, hydrateMessages, isFetchingNewer, messages, supabase])
 
   const fetchChannelInfo = useCallback(async () => {
     if (!channelId) return
@@ -180,6 +284,13 @@ export default function MobileChatArea({ channelId, channelName, serverId, onBac
 
   useEffect(() => {
     if (!channelId) return
+
+    setMessages([])
+    setPendingMessages([])
+    setHasMoreMessages(true)
+    setIsFetchingMore(false)
+    setHasNewerMessages(false)
+    setIsFetchingNewer(false)
 
     fetchChannelInfo()
     fetchMessages()
@@ -235,7 +346,14 @@ export default function MobileChatArea({ channelId, channelName, serverId, onBac
             ),
           )
 
-          setMessages((currentMessages) => [...currentMessages, messageWithUser])
+          setMessages((currentMessages) => {
+            const updated = [...currentMessages, messageWithUser]
+            if (updated.length <= MAX_VISIBLE_MESSAGES) return updated
+            if (isAtBottom) {
+              return updated.slice(updated.length - MAX_VISIBLE_MESSAGES)
+            }
+            return updated.slice(0, MAX_VISIBLE_MESSAGES)
+          })
 
           if (isAtBottom) {
             scrollToBottom()
@@ -380,8 +498,14 @@ export default function MobileChatArea({ channelId, channelName, serverId, onBac
       const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 150
       setIsAtBottom(isNearBottom)
+      if (scrollTop < TOP_SCROLL_THRESHOLD) {
+        fetchOlderMessages()
+      }
+      if (isNearBottom && hasNewerMessages) {
+        fetchNewerMessages()
+      }
     }
-  }, [])
+  }, [fetchOlderMessages, fetchNewerMessages, hasNewerMessages])
 
   useEffect(() => {
     const container = chatContainerRef.current
