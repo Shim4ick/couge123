@@ -70,7 +70,7 @@ type UserRole = {
 }
 
 const MESSAGES_PER_PAGE = 50
-const MESSAGES_BUFFER = 25
+const MESSAGES_LOAD_MORE = 25
 
 const scrollbarStyles = css`
   &::-webkit-scrollbar {
@@ -118,7 +118,6 @@ const isNearBottom = (container: HTMLDivElement) => {
 export default function ChatArea({ channelId, channelName, serverId }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [allMessages, setAllMessages] = useState<Message[]>([])
-  const [visibleStartIndex, setVisibleStartIndex] = useState(0)
   const [hasMoreOlder, setHasMoreOlder] = useState(false)
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
   const [totalMessageCount, setTotalMessageCount] = useState(0)
@@ -248,26 +247,16 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     if (!channelId) return
     setIsMessagesLoading(true)
     try {
-      // First, get total count
-      const { count, error: countError } = await supabase
+      const { data, error, count } = await supabase
         .from("messages")
-        .select("*", { count: "exact", head: true })
-        .eq("channel_id", channelId)
-
-      if (countError) throw countError
-
-      setTotalMessageCount(count || 0)
-      setHasMoreOlder((count || 0) > MESSAGES_PER_PAGE)
-
-      // Fetch only the last MESSAGES_PER_PAGE messages
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
+        .select("*", { count: "exact" })
         .eq("channel_id", channelId)
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE)
 
       if (error) throw error
+
+      setHasMoreOlder((count || 0) > MESSAGES_PER_PAGE)
 
       // Reverse to get chronological order
       const sortedData = data.reverse()
@@ -288,9 +277,8 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         }
       })
 
-      setAllMessages(messagesWithUsers)
       setMessages(messagesWithUsers)
-      setVisibleStartIndex(0)
+      setAllMessages(messagesWithUsers)
 
       fetchUserRoles(userIds)
     } catch (error) {
@@ -306,7 +294,7 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   }, [channelId, supabase, toast, fetchUserRoles])
 
   const loadOlderMessages = useCallback(async () => {
-    if (!channelId || isLoadingOlder || !hasMoreOlder || allMessages.length === 0) return
+    if (!channelId || isLoadingOlder || !hasMoreOlder || messages.length === 0) return
 
     setIsLoadingOlder(true)
 
@@ -316,7 +304,7 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     }
 
     try {
-      const oldestMessage = allMessages[0]
+      const oldestMessage = messages[0]
 
       const { data, error } = await supabase
         .from("messages")
@@ -324,7 +312,7 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         .eq("channel_id", channelId)
         .lt("created_at", oldestMessage.created_at)
         .order("created_at", { ascending: false })
-        .limit(MESSAGES_BUFFER)
+        .limit(MESSAGES_LOAD_MORE)
 
       if (error) throw error
 
@@ -353,11 +341,11 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
       })
 
       // Prepend older messages
-      setAllMessages((prev) => [...messagesWithUsers, ...prev])
       setMessages((prev) => [...messagesWithUsers, ...prev])
+      setAllMessages((prev) => [...messagesWithUsers, ...prev])
 
       // Check if there are more older messages
-      setHasMoreOlder(data.length === MESSAGES_BUFFER)
+      setHasMoreOlder(data.length === MESSAGES_LOAD_MORE)
 
       // Fetch roles for new users
       fetchUserRoles(userIds)
@@ -380,7 +368,7 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     } finally {
       setIsLoadingOlder(false)
     }
-  }, [channelId, isLoadingOlder, hasMoreOlder, allMessages, supabase, toast, fetchUserRoles])
+  }, [channelId, isLoadingOlder, hasMoreOlder, messages, supabase, toast, fetchUserRoles])
 
   const fetchChannelInfo = useCallback(async () => {
     if (!channelId) return
@@ -488,9 +476,8 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
             ),
           )
 
-          setAllMessages((currentMessages) => [...currentMessages, messageWithUser])
           setMessages((currentMessages) => [...currentMessages, messageWithUser])
-          setTotalMessageCount((prev) => prev + 1)
+          setAllMessages((currentMessages) => [...currentMessages, messageWithUser])
 
           if (isAtBottom) {
             scrollToBottom()
@@ -1318,7 +1305,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     setMessages([])
     setAllMessages([])
     setHasMoreOlder(false)
-    setTotalMessageCount(0)
   }, [serverId])
 
   useEffect(() => {
@@ -1445,24 +1431,24 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
                         <div className="w-8 border-l-2 border-t-2 border-[#949ba4] h-3 mr-2 rounded-tl-md"></div>
                         <Avatar className="w-4 h-4 rounded-full mr-1">
                           <AvatarImage
-                            src={messages.find((msg) => msg.id === message.reply_to)?.user?.avatar_url || undefined}
+                            src={allMessages.find((msg) => msg.id === message.reply_to)?.user?.avatar_url || undefined}
                           />
                           <AvatarFallback>
-                            {messages
+                            {allMessages
                               .find((msg) => msg.id === message.reply_to)
                               ?.user?.display_name?.charAt(0)
                               .toUpperCase() || "?"}
                           </AvatarFallback>
                         </Avatar>
                         <span className="font-semibold mr-1">
-                          {messages.find((msg) => msg.id === message.reply_to)?.user?.display_name || "User"}
+                          {allMessages.find((msg) => msg.id === message.reply_to)?.user?.display_name || "User"}
                         </span>
                         <span className="truncate max-w-[200px]">
-                          {messages.find((msg) => msg.id === message.reply_to)?.content ? (
+                          {allMessages.find((msg) => msg.id === message.reply_to)?.content ? (
                             <FormattedText
-                              content={messages.find((msg) => msg.id === message.reply_to)?.content || ""}
+                              content={allMessages.find((msg) => msg.id === message.reply_to)?.content || ""}
                             />
-                          ) : messages.find((msg) => msg.id === message.reply_to)?.file_url ? (
+                          ) : allMessages.find((msg) => msg.id === message.reply_to)?.file_url ? (
                             "Attached File"
                           ) : (
                             ""
