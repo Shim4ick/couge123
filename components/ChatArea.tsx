@@ -70,7 +70,6 @@ type UserRole = {
 }
 
 const MESSAGES_PER_PAGE = 50
-const MESSAGES_LOAD_MORE = 25
 
 const scrollbarStyles = css`
   &::-webkit-scrollbar {
@@ -110,17 +109,10 @@ const formatMessageTime = (date: Date) => {
   }
 }
 
-const isNearBottom = (container: HTMLDivElement) => {
-  const threshold = 150
-  return container.scrollHeight - container.scrollTop - container.clientHeight < threshold
-}
-
 export default function ChatArea({ channelId, channelName, serverId }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([])
-  const [allMessages, setAllMessages] = useState<Message[]>([])
   const [hasMoreOlder, setHasMoreOlder] = useState(false)
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
-  const [totalMessageCount, setTotalMessageCount] = useState(0)
 
   const [newMessage, setNewMessage] = useState("")
   const [isMessagesLoading, setIsMessagesLoading] = useState(true)
@@ -157,7 +149,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ x: 0, y: 0 })
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
-  const scrollHeightBeforeLoad = useRef(0)
 
   const saveChannelInfoToCache = useCallback(
     (channelId: number, info: { description: string | null; allowMessages: boolean }) => {
@@ -247,19 +238,21 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     if (!channelId) return
     setIsMessagesLoading(true)
     try {
-      const { data, error, count } = await supabase
+      // Fetch only the last MESSAGES_PER_PAGE messages
+      const { data, error } = await supabase
         .from("messages")
-        .select("*", { count: "exact" })
+        .select("*")
         .eq("channel_id", channelId)
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE)
 
       if (error) throw error
 
-      setHasMoreOlder((count || 0) > MESSAGES_PER_PAGE)
-
       // Reverse to get chronological order
       const sortedData = data.reverse()
+
+      // If we got a full page, there are probably more older messages
+      setHasMoreOlder(data.length === MESSAGES_PER_PAGE)
 
       const userIds = [...new Set(sortedData.map((message) => message.user_id))]
       const { data: usersData, error: usersError } = await supabase
@@ -278,7 +271,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
       })
 
       setMessages(messagesWithUsers)
-      setAllMessages(messagesWithUsers)
 
       fetchUserRoles(userIds)
     } catch (error) {
@@ -299,9 +291,8 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     setIsLoadingOlder(true)
 
     // Save current scroll height to maintain position after loading
-    if (chatContainerRef.current) {
-      scrollHeightBeforeLoad.current = chatContainerRef.current.scrollHeight
-    }
+    const container = chatContainerRef.current
+    const prevScrollHeight = container ? container.scrollHeight : 0
 
     try {
       const oldestMessage = messages[0]
@@ -312,12 +303,13 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         .eq("channel_id", channelId)
         .lt("created_at", oldestMessage.created_at)
         .order("created_at", { ascending: false })
-        .limit(MESSAGES_LOAD_MORE)
+        .limit(MESSAGES_PER_PAGE)
 
       if (error) throw error
 
       if (data.length === 0) {
         setHasMoreOlder(false)
+        setIsLoadingOlder(false)
         return
       }
 
@@ -340,23 +332,23 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
         }
       })
 
+      // Check if there are more older messages
+      setHasMoreOlder(data.length === MESSAGES_PER_PAGE)
+
       // Prepend older messages
       setMessages((prev) => [...messagesWithUsers, ...prev])
-      setAllMessages((prev) => [...messagesWithUsers, ...prev])
-
-      // Check if there are more older messages
-      setHasMoreOlder(data.length === MESSAGES_LOAD_MORE)
 
       // Fetch roles for new users
       fetchUserRoles(userIds)
 
-      // Restore scroll position after DOM update
+      // Restore scroll position after DOM update so user stays at the same visual position
       requestAnimationFrame(() => {
-        if (chatContainerRef.current) {
-          const newScrollHeight = chatContainerRef.current.scrollHeight
-          const scrollDiff = newScrollHeight - scrollHeightBeforeLoad.current
-          chatContainerRef.current.scrollTop = scrollDiff
-        }
+        requestAnimationFrame(() => {
+          if (container) {
+            const newScrollHeight = container.scrollHeight
+            container.scrollTop = newScrollHeight - prevScrollHeight
+          }
+        })
       })
     } catch (error) {
       console.error("Error loading older messages:", error)
@@ -477,7 +469,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
           )
 
           setMessages((currentMessages) => [...currentMessages, messageWithUser])
-          setAllMessages((currentMessages) => [...currentMessages, messageWithUser])
 
           if (isAtBottom) {
             scrollToBottom()
@@ -779,15 +770,14 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   const handleScroll = useCallback(() => {
     if (chatContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 150
-      const isNearTop = scrollTop < 100
+      const atBottom = scrollHeight - scrollTop - clientHeight < 150
 
-      setIsAtBottom(isNearBottom)
-      setShowJumpToBottom(!isNearBottom)
+      setIsAtBottom(atBottom)
+      setShowJumpToBottom(!atBottom)
       lastScrollPositionRef.current = scrollTop
 
-      // Load older messages when scrolling near top
-      if (isNearTop && hasMoreOlder && !isLoadingOlder) {
+      // Load older messages only when user scrolls to the very top
+      if (scrollTop < 1 && hasMoreOlder && !isLoadingOlder) {
         loadOlderMessages()
       }
     }
@@ -1023,11 +1013,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
           const updatedMessages = prevMessages.filter((msg) => msg.id !== messageId)
           return updatedMessages.map((msg) => (msg.reply_to === messageId ? { ...msg, reply_to: null } : msg))
         })
-        setAllMessages((prevMessages) => {
-          const updatedMessages = prevMessages.filter((msg) => msg.id !== messageId)
-          return updatedMessages.map((msg) => (msg.reply_to === messageId ? { ...msg, reply_to: null } : msg))
-        })
-        setTotalMessageCount((prev) => prev - 1)
 
         toast({
           title: "Successfully",
@@ -1081,18 +1066,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
             : msg,
         ),
       )
-      setAllMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg.id === editingMessageId
-            ? {
-                ...msg,
-                content: editedContent,
-                updated_at: new Date().toISOString(),
-                file_url: msg.file_url,
-              }
-            : msg,
-        ),
-      )
 
       setEditingMessageId(null)
       setEditedContent("")
@@ -1124,14 +1097,16 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
     })
   }
 
+  const messagesLengthRef = useRef(0)
   useEffect(() => {
-    if (messages.length > 0) {
-      if (isAtBottom) {
+    if (messages.length > 0 && isAtBottom) {
+      // Only auto-scroll to bottom when new messages are appended (not prepended)
+      // We detect this by checking if the count grew while we were at the bottom
+      if (messages.length > messagesLengthRef.current) {
         scrollToBottom()
-      } else if (lastScrollPositionRef.current > 0) {
-        chatContainerRef.current?.scrollTo(0, lastScrollPositionRef.current)
       }
     }
+    messagesLengthRef.current = messages.length
   }, [messages, isAtBottom, scrollToBottom])
 
   useEffect(() => {
@@ -1303,7 +1278,6 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
   useEffect(() => {
     setUserRoles({})
     setMessages([])
-    setAllMessages([])
     setHasMoreOlder(false)
   }, [serverId])
 
@@ -1431,24 +1405,24 @@ export default function ChatArea({ channelId, channelName, serverId }: ChatAreaP
                         <div className="w-8 border-l-2 border-t-2 border-[#949ba4] h-3 mr-2 rounded-tl-md"></div>
                         <Avatar className="w-4 h-4 rounded-full mr-1">
                           <AvatarImage
-                            src={allMessages.find((msg) => msg.id === message.reply_to)?.user?.avatar_url || undefined}
+                            src={messages.find((msg) => msg.id === message.reply_to)?.user?.avatar_url || undefined}
                           />
                           <AvatarFallback>
-                            {allMessages
+                            {messages
                               .find((msg) => msg.id === message.reply_to)
                               ?.user?.display_name?.charAt(0)
                               .toUpperCase() || "?"}
                           </AvatarFallback>
                         </Avatar>
                         <span className="font-semibold mr-1">
-                          {allMessages.find((msg) => msg.id === message.reply_to)?.user?.display_name || "User"}
+                          {messages.find((msg) => msg.id === message.reply_to)?.user?.display_name || "User"}
                         </span>
                         <span className="truncate max-w-[200px]">
-                          {allMessages.find((msg) => msg.id === message.reply_to)?.content ? (
+                          {messages.find((msg) => msg.id === message.reply_to)?.content ? (
                             <FormattedText
-                              content={allMessages.find((msg) => msg.id === message.reply_to)?.content || ""}
+                              content={messages.find((msg) => msg.id === message.reply_to)?.content || ""}
                             />
-                          ) : allMessages.find((msg) => msg.id === message.reply_to)?.file_url ? (
+                          ) : messages.find((msg) => msg.id === message.reply_to)?.file_url ? (
                             "Attached File"
                           ) : (
                             ""
