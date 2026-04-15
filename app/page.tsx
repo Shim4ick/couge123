@@ -10,7 +10,7 @@ import CreateOrJoinServer from "@/components/CreateOrJoinServer"
 import CougeLogin from "./login/page"
 import HomePage from "@/components/HomePage"
 import { isMobile } from "@/utils/isMobile"
-import { BetaWelcomeModal } from "@/components/BetaWelcomeModal"
+
 import ServerMembersList from "@/components/ServerMembersList"
 import UserSettings from "@/components/UserSettings"
 import MobileNavigation from "@/components/mobile/MobileNavigation"
@@ -39,7 +39,7 @@ export default function Home() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isMobileDevice, setIsMobileDevice] = useState(false)
-  const [showBetaWelcome, setShowBetaWelcome] = useState(false)
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [mobileView, setMobileView] = useState<"servers" | "channels" | "chat">("servers")
   const [isJoinServerModalOpen, setIsJoinServerModalOpen] = useState(false)
@@ -97,15 +97,7 @@ export default function Home() {
         setSession(!!session)
         if (session) {
           await fetchServers()
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("has_seen_beta_welcome")
-            .eq("id", session.user.id)
-            .single()
 
-          if (profile && !profile.has_seen_beta_welcome) {
-            setShowBetaWelcome(true)
-          }
         }
       } catch (error) {
         console.error("Error checking auth status:", error)
@@ -358,7 +350,7 @@ export default function Home() {
           />
         )}
 
-        <BetaWelcomeModal isOpen={showBetaWelcome} onClose={() => setShowBetaWelcome(false)} />
+
         {inviteCodeToJoin && (
           <JoinServerModal
             isOpen={isJoinServerModalOpen}
@@ -416,7 +408,7 @@ export default function Home() {
       )}
 
       <UserSettings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-      <BetaWelcomeModal isOpen={showBetaWelcome} onClose={() => setShowBetaWelcome(false)} />
+
       {inviteCodeToJoin && (
         <JoinServerModal
           isOpen={isJoinServerModalOpen}
